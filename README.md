@@ -70,7 +70,7 @@ src/
 
 ## 📌 Roadmap
 - [x] Auth module with role-based access
-- [ ] Donor registration + profile
+- [x] Donor registration + profile
 - [ ] Hospital request management
 - [ ] Blood bank inventory + test tracking
 - [ ] Real-time notifications
