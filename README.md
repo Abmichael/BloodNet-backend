@@ -69,7 +69,7 @@ src/
 + Input validation with DTOs
 
 ## 📌 Roadmap
-- [ ] Auth module with role-based access
+- [x] Auth module with role-based access
 - [ ] Donor registration + profile
 - [ ] Hospital request management
 - [ ] Blood bank inventory + test tracking
