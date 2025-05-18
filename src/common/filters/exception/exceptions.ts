@@ -110,13 +110,14 @@ export function processBadRequestException(
   ) {
     // Convert simple error messages to ErrorDetail objects
     const validationErrors = exceptionResponse.message.map(message => {
-      // Try to extract field name from error message (e.g., "role must be a string" -> "role")
-      const match = message.match(/^([a-zA-Z0-9_]+)\s+must\s+be/);
-      const field = match ? match[1] : undefined;
-      
+      // Try to extract field name from error message (e.g., "role must be a string" or "email should not be empty")
+      const mustMatch = message.match(/^([a-zA-Z0-9_]+)\s+must\s+be/);
+      const shouldNotBeEmptyMatch = message.match(/^([a-zA-Z0-9_]+)\s+should\s+not\s+be\s+empty/);
+      const field = mustMatch ? mustMatch[1] : (shouldNotBeEmptyMatch ? shouldNotBeEmptyMatch[1] : undefined);
+
       return {
-        field,
-        message
+      field,
+      message
       };
     });
     

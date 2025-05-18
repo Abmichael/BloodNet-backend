@@ -16,12 +16,16 @@ export class DonorService {
     return this.donorModel.create(createDonorDto);
   }
 
-  async findAll() {
-    return this.donorModel.find().populate('user');
+  findAll() {
+    return this.donorModel
+      .find()
+      .populate({ path: 'user', select: '-password' });
   }
 
   async findByUser(userId: Types.ObjectId | string) {
-    return this.donorModel.findOne({ user: userId }).populate('user');
+    return this.donorModel
+      .findOne({ user: userId })
+      .populate({ path: 'user', select: '-password' });
   }
 
   async update(id: string, updateDonorDto: UpdateDonorDto) {
@@ -30,7 +34,7 @@ export class DonorService {
     });
   }
 
-  async findNearby(
+  findNearby(
     bloodType: string,
     lng: number,
     lat: number,

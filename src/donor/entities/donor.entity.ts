@@ -3,10 +3,10 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 
 export enum BloodType {
-  'O',
-  'A',
-  'B',
-  'AB',
+  O = 'O',
+  A = 'A',
+  B = 'B',
+  AB = 'AB',
 }
 
 export type DonorDocument = Donor & Document;
@@ -16,7 +16,7 @@ export class Donor {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
   user: Types.ObjectId;
 
-  @Prop({ required: true, type: String, enum: Object.keys(BloodType).filter(k => isNaN(Number(k))) })
+  @Prop({ required: true, type: String, enum: Object.values(BloodType) })
   bloodType: BloodType;
 
   @Prop({ required: true, type: String, enum: ['+', '-'] })

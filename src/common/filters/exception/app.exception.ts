@@ -1,5 +1,5 @@
 import { HttpException, HttpStatus } from '@nestjs/common';
-import { ErrorDetail } from '../error-response.interface';
+import { ErrorDetail } from './error-response.interface';
 import { ErrorCategory } from './error-categories.enum';
 
 export class AppException extends HttpException {
