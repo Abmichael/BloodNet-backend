@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
+import { ApiException } from 'src/common/filters/exception';
 
 @Injectable()
 export class UsersService {
@@ -10,10 +11,15 @@ export class UsersService {
   async findByEmail(email: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ email }).exec();
   }
-
   async findById(id: string): Promise<UserDocument> {
     const user = await this.userModel.findById(id);
-    if (!user) throw new NotFoundException('User not found');
+    if (!user) {
+      throw new ApiException([{
+        field: 'id',
+        message: 'User not found',
+        value: id
+      }], 404); // Status code 404 (Not Found)
+    }
     return user;
   }
 

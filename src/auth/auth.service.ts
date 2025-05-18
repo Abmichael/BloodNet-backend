@@ -1,14 +1,17 @@
 import {
-  BadRequestException,
-  ForbiddenException,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { UserDocument } from 'src/users/schemas/user.schema';
+import { 
+  ApiException, 
+  AuthenticationException, 
+  AuthorizationException, 
+  ValidationException 
+} from 'src/common/filters/exception';
 
 @Injectable()
 export class AuthService {
@@ -16,14 +19,23 @@ export class AuthService {
     private usersService: UsersService,
     private jwtService: JwtService,
   ) {}
-
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
-    if (user && (await bcrypt.compare(pass, user.password))) {
-      const { password, ...result } = user.toObject();
-      return result;
+    if (!user) {
+      throw new AuthenticationException([{
+        message: 'Invalid email or password'
+      }]);
     }
-    return null;
+    
+    const isPasswordValid = await bcrypt.compare(pass, user.password);
+    if (!isPasswordValid) {
+      throw new AuthenticationException([{
+        message: 'Invalid email or password'
+      }]);
+    }
+    
+    const { password, ...result } = user.toObject();
+    return result;
   }
 
   async login(user: any) {
@@ -32,28 +44,35 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
     };
   }
-
   async register(
     dto: RegisterDto,
     currentUser?: UserDocument,
   ): Promise<{ token?: string; user?: UserDocument }> {
     const existing = await this.usersService.findByEmail(dto.email);
-    if (existing) throw new BadRequestException('Email already registered');
+    if (existing) throw new ValidationException([{ 
+      field: 'email',
+      message: 'Email already registered',
+      value: dto.email
+    }]);
 
     const isSelfRegistration = !currentUser;
 
     if (!isSelfRegistration && ['hospital', 'blood-bank'].includes(dto.role)) {
       if (currentUser.role !== 'admin') {
-        throw new ForbiddenException(
-          'Only admins can create hospital/blood-bank users',
-        );
+        throw new AuthorizationException([{
+          message: 'Only admins can create hospital/blood-bank users',
+          field: 'role',
+          value: dto.role
+        }]);
       }
     }
 
     if (isSelfRegistration && dto.role !== 'donor') {
-      throw new BadRequestException(
-        'Self-registration is allowed only for donors',
-      );
+      throw new ValidationException([{
+        field: 'role',
+        message: 'Self-registration is allowed only for donors',
+        value: dto.role
+      }]);
     }
 
     const hashed = await bcrypt.hash(dto.password, 10);

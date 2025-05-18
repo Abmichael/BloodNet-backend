@@ -2,11 +2,10 @@ import {
     Injectable,
     CanActivate,
     ExecutionContext,
-    ForbiddenException,
   } from '@nestjs/common';
   import { Reflector } from '@nestjs/core';
   import { ROLES_KEY } from '../decorators/roles.decorator';
-  
+  import { AuthorizationException } from '../filters/exception';
   @Injectable()
   export class RolesGuard implements CanActivate {
     constructor(private reflector: Reflector) {}
@@ -19,9 +18,12 @@ import {
       if (!requiredRoles) {
         return true;
       }
-      const { user } = context.switchToHttp().getRequest();
-      if (!requiredRoles.includes(user.role)) {
-        throw new ForbiddenException('Access denied');
+      const { user } = context.switchToHttp().getRequest();      if (!requiredRoles.includes(user.role)) {
+        throw new AuthorizationException([{
+          message: `Access denied. Role '${user.role}' is not allowed to access this resource`,
+          field: 'role',
+          value: user.role
+        }]);
       }
       return true;
     }

@@ -3,12 +3,29 @@ import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import mongoose from 'mongoose';
-import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+
+import { 
+  GlobalExceptionFilter, 
+  MongooseErrorInterceptor 
+} from './common/filters/exception';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.useGlobalPipes(new ValidationPipe());
+  // Global validation pipe with transform enabled
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
+  // Apply global exception filter
+  app.useGlobalFilters(new GlobalExceptionFilter());
+  
+  // Apply global mongoose error interceptor
+  app.useGlobalInterceptors(new MongooseErrorInterceptor());
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') || 3000;
@@ -18,9 +35,6 @@ async function bootstrap() {
   }
   app.enableCors();
   app.setGlobalPrefix('api');
-
-  const reflector = app.get(Reflector);
-  app.useGlobalGuards(new JwtAuthGuard(reflector));
 
   await app.listen(port);
   console.log(`🚀 Server running on http://localhost:${port}/api`);
