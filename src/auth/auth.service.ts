@@ -40,8 +40,11 @@ export class AuthService {
 
   async login(user: any) {
     const payload = { sub: user._id, role: user.role };
+    // Remove password if present
+    const { password, ...userWithoutPassword } = user.toObject ? user.toObject() : user;
     return {
       access_token: this.jwtService.sign(payload),
+      user: userWithoutPassword,
     };
   }
   async register(
@@ -88,5 +91,12 @@ export class AuthService {
     }
 
     return { user };
+  }
+
+  async checkToken(user: any) {
+    const { password, ...userWithoutPassword } = user.toObject ? user.toObject() : user;
+    return {
+      user: userWithoutPassword,
+    };
   }
 }

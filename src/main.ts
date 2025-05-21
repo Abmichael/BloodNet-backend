@@ -33,7 +33,13 @@ async function bootstrap() {
   if (process.env.NODE_ENV === 'development') {
     mongoose.set('debug', true);
   }
-  app.enableCors();
+  // Enable CORS for specific origin to support credentials
+  app.enableCors({
+    origin: 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
   app.setGlobalPrefix('api');
 
   await app.listen(port);

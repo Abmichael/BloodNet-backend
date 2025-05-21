@@ -67,26 +67,16 @@ export class AggregationFilter<T> {
   }
   /**
    * Apply filters to the aggregation pipeline
-   * Supports two approaches:
-   * 1. Complex query via the 'filter' parameter using a JSON string
-   * 2. Simple field-based filtering with operators
+   * Supports only simple field-based filtering with operators.
+   * Advanced filtering via raw JSON is disabled for security reasons.
    */
   filter(): this {
     const queryObject = { ...this.queryString };
     const excludedFields = ['page', 'sort', 'limit', 'fields', 'filter'];
     excludedFields.forEach((el) => delete queryObject[el]);
 
-    // Handle complex query if present
-    if (this.queryString.filter) {
-      try {
-        const filterObj = JSON.parse(this.queryString.filter as string);
-        this.query.unshift({ $match: filterObj });
-        return this;
-      } catch (error) {
-        console.error('Failed to parse filter JSON:', error);
-        // Continue with standard filtering if JSON parsing fails
-      }
-    }
+    // Advanced filtering via raw JSON is disabled for security reasons.
+    // if (this.queryString.filter) { ... }
 
     const operators = ['gte', 'gt', 'lte', 'lt', 'eq', 'regex', 'regex^', 'ne'];
     const matchObj: any = {};
@@ -98,13 +88,16 @@ export class AggregationFilter<T> {
           matchObj[field] = {};
         }
         if (operator.slice(0, -1) === 'regex') {
+          // Only allow safe regex patterns (alphanumeric and spaces, no special chars)
+          const safePattern = String(queryObject[key]).replace(/[^a-zA-Z0-9 ]/g, '');
           matchObj[field][`$${operator.slice(0, -1)}`] = new RegExp(
-            `${queryObject[key]}`,
+            `${safePattern}`,
             'i',
           );
         } else if (operator.slice(0, -1) === 'regex^') {
-          matchObj[field][`$${operator.slice(0, -1)}`] = new RegExp(
-            `^${queryObject[key]}`,
+          const safePattern = String(queryObject[key]).replace(/[^a-zA-Z0-9 ]/g, '');
+          matchObj[field][`$regex`] = new RegExp(
+            `^${safePattern}`,
             'i',
           );
         } else {

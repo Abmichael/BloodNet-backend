@@ -1,4 +1,4 @@
-import { Controller, Post, Body } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from 'src/common/decorators/public.decorator';
 import { RegisterDto } from './dto/register.dto';
@@ -6,6 +6,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { UserDocument } from 'src/users/schemas/user.schema';
 import { AuthenticationException } from 'src/common/filters/exception';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -38,5 +39,11 @@ export class AuthController {
     @CurrentUser() user: UserDocument,
   ) {
     return this.authService.register(dto, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('check-token')
+  async checkToken(@CurrentUser() user: UserDocument) {
+    return this.authService.checkToken(user);
   }
 }
