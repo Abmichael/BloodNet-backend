@@ -9,6 +9,7 @@ import { RolesGuard } from './common/guards/role.guard';
 import { DonorModule } from './donor/donor.module';
 import { BloodBankModule } from './blood-bank/blood-bank.module';
 import { BloodBagModule } from './blood-bag/blood-bag.module';
+import { DonationModule } from './donation/donation.module';
 
 @Module({
   imports: [
@@ -19,13 +20,12 @@ import { BloodBagModule } from './blood-bag/blood-bag.module';
 
     MongooseModule.forRoot(
       process.env.MONGO_URI || 'mongodb://localhost:27017/bloodnet',
-    ),
-
-    AuthModule,
+    ),    AuthModule,
     UsersModule,
     DonorModule,
     BloodBankModule,
     BloodBagModule,
+    DonationModule,
   ],
   providers: [
     {

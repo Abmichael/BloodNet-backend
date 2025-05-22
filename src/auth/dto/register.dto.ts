@@ -8,8 +8,13 @@ export class RegisterDto {
   @IsString()
   @MinLength(6)
   password: string;
-
   @IsString()
   @IsEnum(UserRole)
   role: UserRole;
+
+  @IsString()
+  name: string;
+
+  @IsString()
+  phoneNumber: string;
 }

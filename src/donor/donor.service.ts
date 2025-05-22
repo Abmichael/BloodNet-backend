@@ -21,16 +21,46 @@ export class DonorService {
       .find()
       .populate({ path: 'user', select: '-password' });
   }
-
   async findByUser(userId: Types.ObjectId | string) {
     return this.donorModel
       .findOne({ user: userId })
       .populate({ path: 'user', select: '-password' });
   }
 
+  async findOne(id: string) {
+    return this.donorModel.findById(id);
+  }
+  
   async update(id: string, updateDonorDto: UpdateDonorDto) {
     return this.donorModel.findByIdAndUpdate(id, updateDonorDto, {
       new: true,
+    });
+  }
+
+  async updateDonationInfo(id: string, data: {
+    lastDonationDate?: Date;
+    nextEligibleDate?: Date;
+    totalDonations?: number;
+  }) {
+    return this.donorModel.findByIdAndUpdate(id, data, { new: true });
+  }
+
+  async updateEligibility(id: string, isEligible: boolean, nextEligibleDate?: Date) {
+    return this.donorModel.findByIdAndUpdate(
+      id,
+      { isEligible, nextEligibleDate },
+      { new: true }
+    );
+  }
+  async findByPhoneNumber(phoneNumber: string) {
+    return this.donorModel.findOne({ phoneNumber });
+  }
+
+  async findByBloodType(bloodType: string, rhFactor: string) {
+    return this.donorModel.find({ 
+      bloodType, 
+      RhFactor: rhFactor,
+      isEligible: true 
     });
   }
 
