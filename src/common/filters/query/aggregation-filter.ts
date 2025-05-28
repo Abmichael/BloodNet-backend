@@ -116,7 +116,12 @@ export class AggregationFilter<T> {
     });
 
     // Add the $match stage to the pipeline
-    this.query.unshift({ $match: matchObj });
+    // If $geoNear is the first stage, $match must come after it
+    if (this.query.length > 0 && this.query[0].$geoNear) {
+      this.query.splice(1, 0, { $match: matchObj }); // insert after $geoNear
+    } else {
+      this.query.unshift({ $match: matchObj }); // prepend if no $geoNear
+    }
     return this;
   }
 

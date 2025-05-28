@@ -6,7 +6,7 @@ import {
 import { CreateBloodBankDto } from './dto/create-blood-bank.dto';
 import { UpdateBloodBankDto } from './dto/update-blood-bank.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, ClientSession } from 'mongoose';
 import { BloodBank, BloodBankDocument } from './entities/blood-bank.entity';
 
 @Injectable()
@@ -16,18 +16,9 @@ export class BloodBankService {
     private readonly bloodBankModel: Model<BloodBankDocument>,
   ) {}
 
-  async create(createDto: CreateBloodBankDto) {
-    try {
+  async create(createDto: CreateBloodBankDto, options?: { session?: ClientSession }) {
       const created = new this.bloodBankModel(createDto);
-      return await created.save();
-    } catch (error) {
-      if (error.code === 11000) {
-        throw new BadRequestException(
-          'Blood bank with this name already exists',
-        );
-      }
-      throw error;
-    }
+      return await created.save(options);
   }
 
   findAll() {

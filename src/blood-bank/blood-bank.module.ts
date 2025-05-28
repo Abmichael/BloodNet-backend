@@ -9,8 +9,8 @@ import { MongooseModule } from '@nestjs/mongoose';
     MongooseModule.forFeature([
       { name: BloodBank.name, schema: BloodBankSchema },
     ]),
-  ],
-  controllers: [BloodBankController],
+  ],  controllers: [BloodBankController],
   providers: [BloodBankService],
+  exports: [BloodBankService],
 })
 export class BloodBankModule {}

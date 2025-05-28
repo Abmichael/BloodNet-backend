@@ -18,7 +18,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserRole } from 'src/users/schemas/user.schema';
 import { RequestStatus } from './entities/blood-request.entity';
 
-@Roles(UserRole.ADMIN, UserRole.HOSPITAL)
+@Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
 @Controller('blood-requests')
 export class BloodRequestController {
   constructor(
@@ -31,7 +31,7 @@ export class BloodRequestController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   async findAll(@Query() query: ExtendedQueryString) {
     const baseQuery = this.bloodRequestService.findAll();
 
@@ -45,7 +45,7 @@ export class BloodRequestController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   findOne(@Param('id') id: string) {
     return this.bloodRequestService.findOne(id);
   }
@@ -67,13 +67,13 @@ export class BloodRequestController {
   }
 
   @Get('status/:status')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   findByStatus(@Param('status') status: RequestStatus) {
     return this.bloodRequestService.findByStatus(status);
   }
 
   @Get('blood-type/:bloodType/:rhFactor')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   findByBloodType(
     @Param('bloodType') bloodType: string,
     @Param('rhFactor') rhFactor: string,
@@ -82,7 +82,7 @@ export class BloodRequestController {
   }
 
   @Get('nearby')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   async findNearby(
     @Query('bloodType') bloodType: string,
     @Query('rhFactor') rhFactor: string,
@@ -107,13 +107,13 @@ export class BloodRequestController {
   }
 
   @Get('urgent')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   findUrgent() {
     return this.bloodRequestService.findUrgent();
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
   updateStatus(
     @Param('id') id: string, 
     @Body('status') status: RequestStatus

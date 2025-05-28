@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, ClientSession } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
 import { ApiException } from 'src/common/filters/exception';
 
@@ -23,8 +23,8 @@ export class UsersService {
     return user;
   }
 
-  async create(userData: Partial<User>): Promise<UserDocument> {
+  async create(userData: Partial<User>, options?: { session?: ClientSession }): Promise<UserDocument> {
     const createdUser = new this.userModel(userData);
-    return createdUser.save();
+    return createdUser.save(options);
   }
 }

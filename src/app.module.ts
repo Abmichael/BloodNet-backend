@@ -11,6 +11,7 @@ import { BloodBankModule } from './blood-bank/blood-bank.module';
 import { DonationModule } from './donation/donation.module';
 import { MedicalInstitutionModule } from './medical-institution/medical-institution.module';
 import { BloodRequestModule } from './blood-request/blood-request.module';
+import { ApplicationsModule } from './applications/applications.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { BloodRequestModule } from './blood-request/blood-request.module';
     DonationModule,
     MedicalInstitutionModule,
     BloodRequestModule,
+    ApplicationsModule,
   ],
   providers: [
     {

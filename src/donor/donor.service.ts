@@ -30,26 +30,33 @@ export class DonorService {
   async findOne(id: string) {
     return this.donorModel.findById(id);
   }
-  
+
   async update(id: string, updateDonorDto: UpdateDonorDto) {
     return this.donorModel.findByIdAndUpdate(id, updateDonorDto, {
       new: true,
     });
   }
 
-  async updateDonationInfo(id: string, data: {
-    lastDonationDate?: Date;
-    nextEligibleDate?: Date;
-    totalDonations?: number;
-  }) {
+  async updateDonationInfo(
+    id: string,
+    data: {
+      lastDonationDate?: Date;
+      nextEligibleDate?: Date;
+      totalDonations?: number;
+    },
+  ) {
     return this.donorModel.findByIdAndUpdate(id, data, { new: true });
   }
 
-  async updateEligibility(id: string, isEligible: boolean, nextEligibleDate?: Date) {
+  async updateEligibility(
+    id: string,
+    isEligible: boolean,
+    nextEligibleDate?: Date,
+  ) {
     return this.donorModel.findByIdAndUpdate(
       id,
       { isEligible, nextEligibleDate },
-      { new: true }
+      { new: true },
     );
   }
   async findByPhoneNumber(phoneNumber: string) {
@@ -57,31 +64,46 @@ export class DonorService {
   }
 
   async findByBloodType(bloodType: string, rhFactor: string) {
-    return this.donorModel.find({ 
-      bloodType, 
+    return this.donorModel.find({
+      bloodType,
       RhFactor: rhFactor,
-      isEligible: true 
+      isEligible: true,
     });
   }
 
   findNearby(
-    bloodType: string,
+    bloodType: string | undefined,
     lng: number,
     lat: number,
     radiusInKm = 10,
   ) {
-    return this.donorModel.find({
-      bloodType,
-      isEligible: true,
-      location: {
-        $nearSphere: {
-          $geometry: {
-            type: 'Point',
-            coordinates: [lng, lat],
-          },
-          $maxDistance: radiusInKm * 1000, // meters
-        },
+    // Extract bloodType and RhFactor if present (e.g., 'O+' or 'A-')
+    let typeOnly: string | undefined = undefined;
+    let rhFactor: string | undefined = undefined;
+    if (bloodType) {
+      const match = bloodType.match(/^([ABOab]{1,2})([+-])$/i);
+      if (match) {
+        typeOnly = match[1].toUpperCase();
+        rhFactor = match[2] === '+' ? '+' : '-';
+      } else {
+        typeOnly = bloodType;
+      }
+    }
+    const geoNearStage: any = {
+      $geoNear: {
+        near: { type: 'Point', coordinates: [lng, lat] },
+        distanceField: 'distance',
+        maxDistance: radiusInKm * 1000, // meters
+        spherical: true,
+        query: { isEligible: true },
       },
-    });
+    };
+    if (typeOnly) {
+      geoNearStage.$geoNear.query.bloodType = typeOnly;
+    }
+    if (rhFactor) {
+      geoNearStage.$geoNear.query.RhFactor = rhFactor;
+    }
+    return [geoNearStage];
   }
 }

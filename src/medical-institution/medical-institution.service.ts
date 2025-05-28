@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, ClientSession } from 'mongoose';
 import { CreateMedicalInstitutionDto } from './dto/create-medical-institution.dto';
 import { UpdateMedicalInstitutionDto } from './dto/update-medical-institution.dto';
 import { MedicalInstitution, MedicalInstitutionDocument } from './entities/medical-institution.entity';
@@ -12,7 +12,7 @@ export class MedicalInstitutionService {
     private medicalInstitutionModel: Model<MedicalInstitutionDocument>,
   ) {}
 
-  async create(dto: CreateMedicalInstitutionDto & { user?: string }) {
+  async create(dto: CreateMedicalInstitutionDto & { user?: string }, options?: { session?: ClientSession }) {
     const { coordinates, ...rest } = dto;
     
     const institution = new this.medicalInstitutionModel({
@@ -23,7 +23,7 @@ export class MedicalInstitutionService {
       },
     });
     
-    return institution.save();
+    return institution.save(options);
   }
 
   findAll() {

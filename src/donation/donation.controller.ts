@@ -25,13 +25,13 @@ export class DonationController {
   constructor(private readonly donationService: DonationService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
   create(@Body() createDonationDto: CreateDonationDto) {
     return this.donationService.create(createDonationDto);
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
   async findAll(@Query() query: ExtendedQueryString) {
     const baseQuery = this.donationService.findAll();
     const filter = new QueryFilter(baseQuery, query)
@@ -43,7 +43,7 @@ export class DonationController {
   }
 
   @Get('donor/:donorId')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   async findAllByDonor(
     @Param('donorId') donorId: string,
     @Query() query: ExtendedQueryString,
@@ -59,19 +59,19 @@ export class DonationController {
   }
 
   @Get('donor/:donorId/stats')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   getDonorStats(@Param('donorId') donorId: string) {
     return this.donationService.getDonorStats(donorId);
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   findOne(@Param('id') id: string) {
     return this.donationService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.HOSPITAL)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
   update(
     @Param('id') id: string,
     @Body() updateDonationDto: UpdateDonationDto,
