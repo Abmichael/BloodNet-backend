@@ -8,8 +8,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/role.guard';
 import { DonorModule } from './donor/donor.module';
 import { BloodBankModule } from './blood-bank/blood-bank.module';
-import { BloodBagModule } from './blood-bag/blood-bag.module';
 import { DonationModule } from './donation/donation.module';
+import { MedicalInstitutionModule } from './medical-institution/medical-institution.module';
+import { BloodRequestModule } from './blood-request/blood-request.module';
 
 @Module({
   imports: [
@@ -24,8 +25,9 @@ import { DonationModule } from './donation/donation.module';
     UsersModule,
     DonorModule,
     BloodBankModule,
-    BloodBagModule,
     DonationModule,
+    MedicalInstitutionModule,
+    BloodRequestModule,
   ],
   providers: [
     {
