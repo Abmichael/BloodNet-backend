@@ -89,17 +89,20 @@ export class AggregationFilter<T> {
         }
         if (operator.slice(0, -1) === 'regex') {
           // Only allow safe regex patterns (alphanumeric and spaces, no special chars)
-          const safePattern = String(queryObject[key]).replace(/[^a-zA-Z0-9 ]/g, '');
+          const safePattern = String(queryObject[key]).replace(
+            /[^a-zA-Z0-9 ]/g,
+            '',
+          );
           matchObj[field][`$${operator.slice(0, -1)}`] = new RegExp(
             `${safePattern}`,
             'i',
           );
         } else if (operator.slice(0, -1) === 'regex^') {
-          const safePattern = String(queryObject[key]).replace(/[^a-zA-Z0-9 ]/g, '');
-          matchObj[field][`$regex`] = new RegExp(
-            `^${safePattern}`,
-            'i',
+          const safePattern = String(queryObject[key]).replace(
+            /[^a-zA-Z0-9 ]/g,
+            '',
           );
+          matchObj[field][`$regex`] = new RegExp(`^${safePattern}`, 'i');
         } else {
           matchObj[field][`$${operator.slice(0, -1)}`] = queryObject[key];
         }

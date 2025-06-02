@@ -1,6 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document, Types } from 'mongoose';
-import { CollectionMethod, DonationStatus, DonationType } from '../donation.constants';
+import {
+  CollectionMethod,
+  DonationStatus,
+  DonationType,
+} from '../donation.constants';
 
 export type DonationDocument = Donation & Document;
 

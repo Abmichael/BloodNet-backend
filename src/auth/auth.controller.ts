@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { Public } from 'src/common/decorators/public.decorator';
 import { RegisterDto } from './dto/register.dto';
@@ -40,10 +40,15 @@ export class AuthController {
   ) {
     return this.authService.register(dto, user);
   }
-
   @UseGuards(JwtAuthGuard)
   @Post('check-token')
   async checkToken(@CurrentUser() user: UserDocument) {
     return this.authService.checkToken(user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('profile-status')
+  async getProfileStatus(@CurrentUser() user: UserDocument) {
+    return this.authService.getProfileStatus(String(user._id));
   }
 }

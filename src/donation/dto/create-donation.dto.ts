@@ -1,4 +1,15 @@
-import { IsDate, IsEnum, IsMongoId, IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, Min, Max } from 'class-validator';
+import {
+  IsDate,
+  IsEnum,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsNumber,
+  IsBoolean,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { DonationStatus } from '../donation.constants';
 
@@ -68,7 +79,7 @@ export class CreateDonationDto {
   @Min(100) // Minimum volume
   @Max(1000) // Maximum volume
   volumeCollected?: number;
-  
+
   @IsString()
   @IsOptional()
   donationType?: string;

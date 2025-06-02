@@ -35,7 +35,7 @@ export class Donor {
 
   @Prop({ type: String, enum: ['Male', 'Female', 'Other'], required: true })
   gender: string;
-  
+
   // Emergency Contact
   @Prop({ type: String, required: false })
   emergencyContactName?: string;

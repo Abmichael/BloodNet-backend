@@ -10,7 +10,7 @@ import { extractMongooseErrors } from './exceptions';
 
 /**
  * Interceptor to automatically catch and process Mongoose errors.
- * 
+ *
  * This eliminates the need to wrap Mongoose operations in try/catch blocks.
  * Simply use this interceptor globally, and all Mongoose errors will be
  * transformed into MongooseException instances with structured error details.
@@ -32,7 +32,7 @@ export class MongooseErrorInterceptor implements NestInterceptor {
           const errors = extractMongooseErrors(error);
           return throwError(() => new MongooseException(errors));
         }
-        
+
         // If not a Mongoose error, pass it through
         return throwError(() => error);
       }),

@@ -1,8 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import { Document, Types } from 'mongoose';
+import { User } from '../../users/schemas/user.schema';
 
 @Schema({ timestamps: true })
 export class BloodBank {
+  @Prop({ type: Types.ObjectId, ref: 'User' })
+  user?: User;
+
   @Prop({ required: true, unique: true })
   name: string;
 

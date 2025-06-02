@@ -1,18 +1,18 @@
-import { 
-  IsNotEmpty, 
-  IsString, 
-  IsOptional, 
-  IsEmail, 
+import {
+  IsNotEmpty,
+  IsString,
+  IsOptional,
+  IsEmail,
   IsObject,
   IsNumber,
-  IsArray, 
-  IsDate, 
+  IsArray,
+  IsDate,
   ValidateNested,
   IsUrl,
   IsISO8601,
   IsEnum,
   ArrayMinSize,
-  ArrayMaxSize
+  ArrayMaxSize,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 

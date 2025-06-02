@@ -17,9 +17,7 @@ export class ApiException extends AppException {
     errors: ErrorDetail[] | string,
     statusCode: HttpStatus = HttpStatus.BAD_REQUEST,
   ) {
-    const errorDetails = Array.isArray(errors)
-      ? errors
-      : [{ message: errors }];
+    const errorDetails = Array.isArray(errors) ? errors : [{ message: errors }];
     super(errorDetails, statusCode, ErrorCategory.API);
   }
 }
@@ -29,9 +27,7 @@ export class DatabaseException extends AppException {
     errors: ErrorDetail[] | string,
     statusCode: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR,
   ) {
-    const errorDetails = Array.isArray(errors)
-      ? errors
-      : [{ message: errors }];
+    const errorDetails = Array.isArray(errors) ? errors : [{ message: errors }];
     super(errorDetails, statusCode, ErrorCategory.DATABASE);
   }
 }
@@ -41,9 +37,7 @@ export class ValidationException extends AppException {
     errors: ErrorDetail[] | string,
     statusCode: HttpStatus = HttpStatus.BAD_REQUEST,
   ) {
-    const errorDetails = Array.isArray(errors)
-      ? errors
-      : [{ message: errors }];
+    const errorDetails = Array.isArray(errors) ? errors : [{ message: errors }];
     super(errorDetails, statusCode, ErrorCategory.VALIDATION);
   }
 }
@@ -53,9 +47,7 @@ export class AuthenticationException extends AppException {
     errors: ErrorDetail[] | string,
     statusCode: HttpStatus = HttpStatus.UNAUTHORIZED,
   ) {
-    const errorDetails = Array.isArray(errors)
-      ? errors
-      : [{ message: errors }];
+    const errorDetails = Array.isArray(errors) ? errors : [{ message: errors }];
     super(errorDetails, statusCode, ErrorCategory.AUTHENTICATION);
   }
 }
@@ -65,9 +57,7 @@ export class AuthorizationException extends AppException {
     errors: ErrorDetail[] | string,
     statusCode: HttpStatus = HttpStatus.FORBIDDEN,
   ) {
-    const errorDetails = Array.isArray(errors)
-      ? errors
-      : [{ message: errors }];
+    const errorDetails = Array.isArray(errors) ? errors : [{ message: errors }];
     super(errorDetails, statusCode, ErrorCategory.AUTHORIZATION);
   }
 }
@@ -77,9 +67,7 @@ export class MongooseException extends AppException {
     errors: ErrorDetail[] | string,
     statusCode: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR,
   ) {
-    const errorDetails = Array.isArray(errors)
-      ? errors
-      : [{ message: errors }];
+    const errorDetails = Array.isArray(errors) ? errors : [{ message: errors }];
     super(errorDetails, statusCode, ErrorCategory.MONGOOSE);
   }
 }

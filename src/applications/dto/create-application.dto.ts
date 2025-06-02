@@ -1,13 +1,13 @@
-import { 
-  IsEmail, 
-  IsString, 
-  IsEnum, 
-  IsObject, 
-  ValidateNested, 
+import {
+  IsEmail,
+  IsString,
+  IsEnum,
+  IsObject,
+  ValidateNested,
   MinLength,
   IsArray,
   IsOptional,
-  IsNotEmpty
+  IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApplicationRole } from '../entities/application.entity';

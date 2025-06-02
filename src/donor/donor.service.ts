@@ -22,8 +22,12 @@ export class DonorService {
       .populate({ path: 'user', select: '-password' });
   }
   async findByUser(userId: Types.ObjectId | string) {
+    let id = userId;
+    if (typeof userId === 'string') {
+      id = new Types.ObjectId(userId);
+    }
     return this.donorModel
-      .findOne({ user: userId })
+      .findOne({ user: id })
       .populate({ path: 'user', select: '-password' });
   }
 

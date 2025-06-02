@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, ClientSession } from 'mongoose';
+import { Model, ClientSession, Types } from 'mongoose';
 import { CreateMedicalInstitutionDto } from './dto/create-medical-institution.dto';
 import { UpdateMedicalInstitutionDto } from './dto/update-medical-institution.dto';
-import { MedicalInstitution, MedicalInstitutionDocument } from './entities/medical-institution.entity';
+import {
+  MedicalInstitution,
+  MedicalInstitutionDocument,
+} from './entities/medical-institution.entity';
 
 @Injectable()
 export class MedicalInstitutionService {
@@ -12,9 +15,12 @@ export class MedicalInstitutionService {
     private medicalInstitutionModel: Model<MedicalInstitutionDocument>,
   ) {}
 
-  async create(dto: CreateMedicalInstitutionDto & { user?: string }, options?: { session?: ClientSession }) {
+  async create(
+    dto: CreateMedicalInstitutionDto & { user?: string },
+    options?: { session?: ClientSession },
+  ) {
     const { coordinates, ...rest } = dto;
-    
+
     const institution = new this.medicalInstitutionModel({
       ...rest,
       location: {
@@ -22,7 +28,7 @@ export class MedicalInstitutionService {
         coordinates,
       },
     });
-    
+
     return institution.save(options);
   }
 
@@ -36,7 +42,7 @@ export class MedicalInstitutionService {
 
   update(id: string, dto: UpdateMedicalInstitutionDto) {
     const updateData: any = { ...dto };
-    
+
     if (dto.coordinates) {
       updateData.location = {
         type: 'Point',
@@ -44,19 +50,17 @@ export class MedicalInstitutionService {
       };
       delete updateData.coordinates;
     }
-    
-    return this.medicalInstitutionModel.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true },
-    );
+
+    return this.medicalInstitutionModel.findByIdAndUpdate(id, updateData, {
+      new: true,
+    });
   }
 
   remove(id: string) {
     return this.medicalInstitutionModel.findByIdAndDelete(id);
   }
 
-  findByUser(userId: string) {
+  findByUser(userId: Types.ObjectId | string) {
     return this.medicalInstitutionModel.findOne({ user: userId });
   }
 
@@ -66,10 +70,10 @@ export class MedicalInstitutionService {
         $geoWithin: {
           $centerSphere: [
             [lng, lat],
-            radius / 6371 // Convert km to radians (Earth's radius is ~6371 km)
-          ]
-        }
-      }
+            radius / 6371, // Convert km to radians (Earth's radius is ~6371 km)
+          ],
+        },
+      },
     });
   }
 

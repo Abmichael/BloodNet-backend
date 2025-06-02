@@ -4,9 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { ValidationPipe } from '@nestjs/common';
 import mongoose from 'mongoose';
 
-import { 
-  GlobalExceptionFilter, 
-  MongooseErrorInterceptor 
+import {
+  GlobalExceptionFilter,
+  MongooseErrorInterceptor,
 } from './common/filters/exception';
 
 async function bootstrap() {
@@ -23,7 +23,7 @@ async function bootstrap() {
 
   // Apply global exception filter
   app.useGlobalFilters(new GlobalExceptionFilter());
-  
+
   // Apply global mongoose error interceptor
   app.useGlobalInterceptors(new MongooseErrorInterceptor());
 

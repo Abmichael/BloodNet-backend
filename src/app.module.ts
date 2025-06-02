@@ -12,6 +12,9 @@ import { DonationModule } from './donation/donation.module';
 import { MedicalInstitutionModule } from './medical-institution/medical-institution.module';
 import { BloodRequestModule } from './blood-request/blood-request.module';
 import { ApplicationsModule } from './applications/applications.module';
+import { DonationScheduleModule } from './donation-schedule/donation-schedule.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -22,7 +25,8 @@ import { ApplicationsModule } from './applications/applications.module';
 
     MongooseModule.forRoot(
       process.env.MONGO_URI || 'mongodb://localhost:27017/bloodnet',
-    ),    AuthModule,
+    ),
+    AuthModule,
     UsersModule,
     DonorModule,
     BloodBankModule,
@@ -30,6 +34,9 @@ import { ApplicationsModule } from './applications/applications.module';
     MedicalInstitutionModule,
     BloodRequestModule,
     ApplicationsModule,
+    DonationScheduleModule,
+    NotificationsModule,
+    AdminModule
   ],
   providers: [
     {

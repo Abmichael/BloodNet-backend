@@ -22,23 +22,23 @@ export class Application {
   @Prop({ required: true })
   password: string;
 
-  @Prop({ 
-    required: true, 
-    type: String, 
-    enum: Object.values(ApplicationRole) 
+  @Prop({
+    required: true,
+    type: String,
+    enum: Object.values(ApplicationRole),
   })
   role: ApplicationRole;
 
-  @Prop({ 
-    required: true, 
-    type: Object 
+  @Prop({
+    required: true,
+    type: Object,
   })
   profileData: Record<string, any>;
 
-  @Prop({ 
-    type: String, 
-    enum: Object.values(ApplicationStatus), 
-    default: ApplicationStatus.PENDING 
+  @Prop({
+    type: String,
+    enum: Object.values(ApplicationStatus),
+    default: ApplicationStatus.PENDING,
   })
   status: ApplicationStatus;
 

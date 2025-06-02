@@ -3,19 +3,20 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { CreateDonationDto } from './dto/create-donation.dto';
 import { UpdateDonationDto } from './dto/update-donation.dto';
-import {
-  Donation,
-  DonationDocument,
-} from './entities/donation.entity';
+import { Donation, DonationDocument } from './entities/donation.entity';
 import { DonorService } from '../donor/donor.service';
+import { BloodBankService } from '../blood-bank/blood-bank.service';
 import { ApiException, MongooseException } from '../common/filters/exception';
 import { DonationStatus } from './donation.constants';
+import { NotificationHelperService } from '../notifications/notification-helper.service';
 
 @Injectable()
 export class DonationService {
   constructor(
     @InjectModel(Donation.name) private donationModel: Model<DonationDocument>,
     @Inject(forwardRef(() => DonorService)) private donorService: DonorService,
+    private notificationHelper: NotificationHelperService,
+    private bloodBankService: BloodBankService,
   ) {}
   async create(createDonationDto: CreateDonationDto): Promise<Donation> {
     // Check if donor exists
@@ -247,5 +248,62 @@ export class DonationService {
       })),
     };
     // Note: MongooseErrorInterceptor will automatically catch and process any Mongoose errors
+  }
+  // Enhanced method to notify when donation results are ready
+  async notifyDonationResultsReady(donationId: string, bloodBankName?: string) {
+    const donation = await this.donationModel
+      .findById(donationId)
+      .populate('bloodBank', 'name location contactNumber')
+      .exec();
+
+    if (!donation) {
+      throw new ApiException([
+        {
+          field: 'donationId',
+          message: `Donation with ID ${donationId} not found`,
+        },
+      ]);
+    }
+
+    // Determine the blood bank name
+    let resolvedBloodBankName = bloodBankName;
+
+    // Use the populated blood bank name if available and no specific name was provided
+    if (!resolvedBloodBankName && donation.bloodBank) {
+      if (
+        typeof donation.bloodBank === 'object' &&
+        (donation.bloodBank as any).name
+      ) {
+        resolvedBloodBankName = (donation.bloodBank as any).name;
+      } else {
+        // Try to fetch from blood bank service
+        try {
+          const bloodBank = await this.bloodBankService.findOne(
+            donation.bloodBank.toString(),
+          );
+          resolvedBloodBankName = bloodBank.name;
+        } catch (err) {
+          console.error('Error fetching blood bank details:', err);
+          resolvedBloodBankName = 'Blood Bank'; // Fallback name
+        }
+      }
+    }
+
+    // Use generic name as last resort
+    if (!resolvedBloodBankName) {
+      resolvedBloodBankName = 'Blood Bank';
+    }
+
+    await this.notificationHelper.notifyDonationCompleted(
+      donation.donor.toString(),
+      donationId,
+      donation.donationDate,
+      resolvedBloodBankName,
+    );
+
+    return {
+      success: true,
+      message: `Donation result notification sent to donor. Results ready at ${resolvedBloodBankName}.`,
+    };
   }
 }

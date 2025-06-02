@@ -41,17 +41,17 @@ export class BloodRequest {
   unitsFulfilled: number;
 
   // Request Details
-  @Prop({ 
-    type: String, 
-    enum: Object.values(RequestStatus), 
-    default: RequestStatus.PENDING 
+  @Prop({
+    type: String,
+    enum: Object.values(RequestStatus),
+    default: RequestStatus.PENDING,
   })
   status: RequestStatus;
 
-  @Prop({ 
-    type: String, 
-    enum: Object.values(RequestPriority), 
-    default: RequestPriority.MEDIUM 
+  @Prop({
+    type: String,
+    enum: Object.values(RequestPriority),
+    default: RequestPriority.MEDIUM,
   })
   priority: RequestPriority;
 

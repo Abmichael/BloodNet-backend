@@ -21,19 +21,38 @@ import { RequestStatus } from './entities/blood-request.entity';
 @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
 @Controller('blood-requests')
 export class BloodRequestController {
-  constructor(
-    private readonly bloodRequestService: BloodRequestService,
-  ) {}
+  constructor(private readonly bloodRequestService: BloodRequestService) {}
 
   @Post()
   create(@Body() dto: CreateBloodRequestDto, @Req() req: any) {
-    return this.bloodRequestService.create({ ...dto, requestedBy: req.user._id });
+    return this.bloodRequestService.create({
+      ...dto,
+      requestedBy: req.user._id,
+    });
   }
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
-  async findAll(@Query() query: ExtendedQueryString) {
-    const baseQuery = this.bloodRequestService.findAll();
+  async findAll(@Query() query: ExtendedQueryString, @Req() req: any) {
+    let baseQuery;
+
+    // If the user is a DONOR, filter requests to only show relevant ones
+    if (req.user.role === UserRole.DONOR) {
+      // Check if location filtering should be included (defaults to true)
+      const includeLocation = Object.hasOwn(query, 'includeLocation');
+
+      // Get the filter criteria first (async)
+      const donorFilterCriteria =
+        await this.bloodRequestService.buildDonorFilterCriteria(
+          req.user._id,
+          includeLocation,
+        );
+      console.log('donorFilterCriteria:', donorFilterCriteria);
+      baseQuery = this.bloodRequestService.findAllForDonor(donorFilterCriteria);
+    } else {
+      // For admins and medical institutions, use the standard approach
+      baseQuery = this.bloodRequestService.findAll();
+    }
 
     const filter = new QueryFilter(baseQuery, query)
       .filter()
@@ -114,10 +133,7 @@ export class BloodRequestController {
 
   @Patch(':id/status')
   @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
-  updateStatus(
-    @Param('id') id: string, 
-    @Body('status') status: RequestStatus
-  ) {
+  updateStatus(@Param('id') id: string, @Body('status') status: RequestStatus) {
     return this.bloodRequestService.updateStatus(id, status);
   }
 }

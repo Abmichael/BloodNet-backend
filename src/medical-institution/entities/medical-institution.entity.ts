@@ -77,5 +77,6 @@ export class MedicalInstitution {
   isActive: boolean;
 }
 
-export const MedicalInstitutionSchema = SchemaFactory.createForClass(MedicalInstitution);
+export const MedicalInstitutionSchema =
+  SchemaFactory.createForClass(MedicalInstitution);
 MedicalInstitutionSchema.index({ location: '2dsphere' });

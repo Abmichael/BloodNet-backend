@@ -3,7 +3,7 @@ import { ExtendedQueryString } from './filter.types';
 
 /**
  * Class for filtering, sorting, and paginating database queries.
- * 
+ *
  * @example
  * // In your controller
  * @Get()
@@ -13,7 +13,7 @@ import { ExtendedQueryString } from './filter.types';
  *     .sort()
  *     .limitFields()
  *     .paginate();
- *     
+ *
  *   return await filter.getResults();
  * }
  */
@@ -70,7 +70,7 @@ export class QueryFilter {
         if (!queryConditions[field]) {
           queryConditions[field] = {};
         }
-        
+
         if (operator.slice(0, -1) === 'regex') {
           queryConditions[field][`$${operator.slice(0, -1)}`] = new RegExp(
             `${queryObject[key]}`,
@@ -82,7 +82,8 @@ export class QueryFilter {
             'i',
           );
         } else {
-          queryConditions[field][`$${operator.slice(0, -1)}`] = queryObject[key];
+          queryConditions[field][`$${operator.slice(0, -1)}`] =
+            queryObject[key];
         }
       } else {
         queryConditions[key] = queryObject[key];
@@ -136,8 +137,14 @@ export class QueryFilter {
     if (!this.qs['limit'] && !this.qs['page']) {
       return this;
     }
-    const page = this.qs['page'] !== undefined ? parseInt(this.qs['page'] as string, 10) || 1 : 1;
-    const limit = this.qs['limit'] !== undefined ? parseInt(this.qs['limit'] as string, 10) || 10 : 10;
+    const page =
+      this.qs['page'] !== undefined
+        ? parseInt(this.qs['page'] as string, 10) || 1
+        : 1;
+    const limit =
+      this.qs['limit'] !== undefined
+        ? parseInt(this.qs['limit'] as string, 10) || 10
+        : 10;
     const skip = (page - 1) * limit;
 
     this.query = this.query.skip(skip).limit(limit);
@@ -155,7 +162,7 @@ export class QueryFilter {
     const totalResults = await this.query.model
       .countDocuments(this.query.getQuery())
       .exec();
-    
+
     if (this.qs['pagination']) {
       const { page, limit } = this.qs['pagination'];
       const totalPages = Math.ceil(totalResults / limit);

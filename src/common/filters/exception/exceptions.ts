@@ -1,4 +1,8 @@
-import { BadRequestException, HttpException, ValidationError } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  ValidationError,
+} from '@nestjs/common';
 import { Error as MongooseError } from 'mongoose';
 import { ErrorDetail } from './error-response.interface';
 import { MongooseException, ValidationException } from './app.exception';
@@ -86,7 +90,7 @@ export function processBadRequestException(
   exception: BadRequestException,
 ): HttpException {
   const exceptionResponse = exception.getResponse() as any;
-  
+
   // Check for class-validator errors with complex object structure
   if (
     exceptionResponse &&
@@ -95,35 +99,41 @@ export function processBadRequestException(
     typeof exceptionResponse.message[0] === 'object' &&
     exceptionResponse.message[0] !== null &&
     ('property' in exceptionResponse.message[0] ||
-     'constraints' in exceptionResponse.message[0])
+      'constraints' in exceptionResponse.message[0])
   ) {
     const validationErrors = extractValidationErrors(exceptionResponse.message);
     return new ValidationException(validationErrors);
   }
-  
+
   // Check for simple array of validation error messages
   if (
     exceptionResponse &&
     Array.isArray(exceptionResponse.message) &&
     exceptionResponse.message.length > 0 &&
-    exceptionResponse.message.every(msg => typeof msg === 'string')
+    exceptionResponse.message.every((msg) => typeof msg === 'string')
   ) {
     // Convert simple error messages to ErrorDetail objects
-    const validationErrors = exceptionResponse.message.map(message => {
+    const validationErrors = exceptionResponse.message.map((message) => {
       // Try to extract field name from error message (e.g., "role must be a string" or "email should not be empty")
       const mustMatch = message.match(/^([a-zA-Z0-9_]+)\s+must\s+be/);
-      const shouldNotBeEmptyMatch = message.match(/^([a-zA-Z0-9_]+)\s+should\s+not\s+be\s+empty/);
-      const field = mustMatch ? mustMatch[1] : (shouldNotBeEmptyMatch ? shouldNotBeEmptyMatch[1] : undefined);
+      const shouldNotBeEmptyMatch = message.match(
+        /^([a-zA-Z0-9_]+)\s+should\s+not\s+be\s+empty/,
+      );
+      const field = mustMatch
+        ? mustMatch[1]
+        : shouldNotBeEmptyMatch
+          ? shouldNotBeEmptyMatch[1]
+          : undefined;
 
       return {
-      field,
-      message
+        field,
+        message,
       };
     });
-    
+
     return new ValidationException(validationErrors);
   }
-  
+
   return exception;
 }
 

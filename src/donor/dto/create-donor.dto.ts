@@ -1,4 +1,20 @@
-import { IsEnum, IsMongoId, IsNotEmpty, IsOptional, IsString, IsBoolean, IsDateString, ValidateNested, ArrayMinSize, ArrayMaxSize, IsEmail, IsArray, IsNumber, Min, Max } from 'class-validator';
+import {
+  IsEnum,
+  IsMongoId,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsBoolean,
+  IsDateString,
+  ValidateNested,
+  ArrayMinSize,
+  ArrayMaxSize,
+  IsEmail,
+  IsArray,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { BloodType } from '../entities/donor.entity';
 
@@ -40,7 +56,7 @@ export class CreateDonorDto {
   @IsString()
   @IsEnum(['Male', 'Female', 'Other'])
   gender: string;
-  
+
   // Emergency Contact
   @IsString()
   @IsOptional()
@@ -82,7 +98,7 @@ export class CreateDonorDto {
   @IsString()
   @IsOptional()
   RhFactor?: '+' | '-'; // Optional for first-time donors
-  
+
   // Medical Information
   @IsArray()
   @IsString({ each: true })
@@ -117,7 +133,7 @@ export class CreateDonorDto {
   @ValidateNested()
   @Type(() => LocationDto)
   location: LocationDto;
-  
+
   // Eligibility and Preferences
   @IsOptional()
   @IsBoolean()

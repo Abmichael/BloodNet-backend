@@ -35,13 +35,13 @@ export class ApplicationsController {
   @Get()
   async findAll(@Query() query: ExtendedQueryString) {
     const baseQuery = this.applicationsService.findAll();
-    
+
     const filter = new QueryFilter(baseQuery, query)
       .filter()
       .sort()
       .limitFields()
       .paginate();
-    
+
     return await filter.getResults();
   }
 

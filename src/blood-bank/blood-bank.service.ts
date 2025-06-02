@@ -6,7 +6,7 @@ import {
 import { CreateBloodBankDto } from './dto/create-blood-bank.dto';
 import { UpdateBloodBankDto } from './dto/update-blood-bank.dto';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, ClientSession } from 'mongoose';
+import { Model, ClientSession, Types } from 'mongoose';
 import { BloodBank, BloodBankDocument } from './entities/blood-bank.entity';
 
 @Injectable()
@@ -16,13 +16,19 @@ export class BloodBankService {
     private readonly bloodBankModel: Model<BloodBankDocument>,
   ) {}
 
-  async create(createDto: CreateBloodBankDto, options?: { session?: ClientSession }) {
-      const created = new this.bloodBankModel(createDto);
-      return await created.save(options);
+  async create(
+    createDto: CreateBloodBankDto,
+    options?: { session?: ClientSession },
+  ) {
+    const created = new this.bloodBankModel(createDto);
+    return await created.save(options);
   }
-
   findAll() {
     return this.bloodBankModel.find();
+  }
+
+  async findByUser(userId: Types.ObjectId | string) {
+    return this.bloodBankModel.findOne({ user: userId }).exec();
   }
 
   async findOne(id: string) {
