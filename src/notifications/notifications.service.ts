@@ -23,6 +23,8 @@ import {
   RecipientContactInfo,
   NotificationPreferencesService,
 } from './services';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
 
 @Injectable()
 export class NotificationsService {
@@ -32,13 +34,37 @@ export class NotificationsService {
     private notificationModel: Model<NotificationDocument>,
     private notificationDeliveryService: NotificationDeliveryService,
     private notificationPreferencesService: NotificationPreferencesService,
+    private adminService: AdminService,
   ) {}
 
   async create(
     createNotificationDto: CreateNotificationDto,
   ): Promise<Notification> {
     const notification = new this.notificationModel(createNotificationDto);
-    return notification.save();
+    const savedNotification = await notification.save();
+
+    // Log notification creation activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.NOTIFICATION_SENT,
+        title: 'Notification Created',
+        description: `Notification "${savedNotification.title}" created for ${savedNotification.recipientType}`,
+        userId: savedNotification.recipientId.toString(),
+        metadata: {
+          notificationId: (savedNotification as any)._id.toString(),
+          notificationType: savedNotification.type,
+          recipientType: savedNotification.recipientType,
+          recipientId: savedNotification.recipientId.toString(),
+          title: savedNotification.title,
+          relatedEntityType: savedNotification.relatedEntityType,
+          relatedEntityId: savedNotification.relatedEntityId?.toString(),
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to log notification creation activity:', error);
+    }
+
+    return savedNotification;
   }
 
   async findAll(query: GetNotificationsQueryDto = {}): Promise<{
@@ -190,10 +216,31 @@ export class NotificationsService {
       relatedEntityType: 'BloodRequest',
     }));
 
-    await this.notificationModel.insertMany(notifications);
+    const insertedNotifications = await this.notificationModel.insertMany(notifications);
     this.logger.log(
       `Created ${notifications.length} blood request notifications for donors`,
     );
+
+    // Log bulk notification activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.NOTIFICATION_SENT,
+        title: 'Blood Request Notifications Sent to Donors',
+        description: `${notifications.length} ${isUrgent ? 'urgent' : 'standard'} blood request notifications sent for ${bloodType} blood`,
+        metadata: {
+          bloodRequestId,
+          bloodType,
+          location,
+          priority,
+          isUrgent,
+          recipientCount: donorIds.length,
+          donorIds,
+          notificationIds: insertedNotifications.map(n => (n as any)._id.toString()),
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to log blood request notifications activity:', error);
+    }
   }
 
   async notifyBloodRequestToBloodBanks(
@@ -232,10 +279,31 @@ export class NotificationsService {
       relatedEntityType: 'BloodRequest',
     }));
 
-    await this.notificationModel.insertMany(notifications);
+    const insertedNotifications = await this.notificationModel.insertMany(notifications);
     this.logger.log(
       `Created ${notifications.length} blood request notifications for blood banks`,
     );
+
+    // Log bulk notification activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.NOTIFICATION_SENT,
+        title: 'Blood Request Notifications Sent to Blood Banks',
+        description: `${notifications.length} ${isUrgent ? 'urgent' : 'standard'} blood request notifications sent for ${bloodType} blood`,
+        metadata: {
+          bloodRequestId,
+          bloodType,
+          location,
+          priority,
+          isUrgent,
+          recipientCount: bloodBankIds.length,
+          bloodBankIds,
+          notificationIds: insertedNotifications.map(n => (n as any)._id.toString()),
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to log blood bank notifications activity:', error);
+    }
   }
 
   async notifyDonationResultReady(
@@ -261,10 +329,30 @@ export class NotificationsService {
       relatedEntityType: 'Donation',
     };
 
-    await this.create(notification);
+    const createdNotification = await this.create(notification);
     this.logger.log(
       `Created donation result notification for donor ${donorId}`,
     );
+
+    // Log specific donation result notification activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.NOTIFICATION_SENT,
+        title: 'Donation Result Notification Sent',
+        description: `Donation result notification sent to donor for donation on ${donationDate.toLocaleDateString()}`,
+        userId: donorId,
+        metadata: {
+          notificationId: (createdNotification as any)._id.toString(),
+          donorId,
+          donationId,
+          donationDate: donationDate.toISOString(),
+          bloodBankName,
+          requiresInPersonVisit: true,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to log donation result notification activity:', error);
+    }
   }
 
   async notifyBloodRequestFulfilled(
@@ -289,10 +377,29 @@ export class NotificationsService {
       relatedEntityType: 'BloodRequest',
     };
 
-    await this.create(notification);
+    const createdNotification = await this.create(notification);
     this.logger.log(
       `Created blood request fulfilled notification for requester ${requesterId}`,
     );
+
+    // Log blood request fulfillment notification activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.BLOOD_REQUEST_FULFILLED,
+        title: 'Blood Request Fulfillment Notification Sent',
+        description: `Blood request fulfillment notification sent for ${bloodType} blood request`,
+        userId: requesterId,
+        metadata: {
+          notificationId: (createdNotification as any)._id.toString(),
+          requesterId,
+          bloodRequestId,
+          bloodType,
+          fulfilledBy,
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to log blood request fulfillment notification activity:', error);
+    }
   }
   async notifyAppointmentReminder(
     donorId: string,
@@ -323,10 +430,31 @@ export class NotificationsService {
       relatedEntityType: 'DonationSchedule',
     };
 
-    await this.create(notification);
+    const createdNotification = await this.create(notification);
     this.logger.log(
       `Created appointment reminder notification for donor ${donorId}`,
     );
+
+    // Log appointment reminder notification activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.NOTIFICATION_SENT,
+        title: 'Appointment Reminder Notification Created',
+        description: `Appointment reminder notification scheduled for donation appointment at ${bloodBankName}`,
+        userId: donorId,
+        metadata: {
+          notificationId: (createdNotification as any)._id.toString(),
+          donorId,
+          appointmentId,
+          appointmentDate: appointmentDate.toISOString(),
+          appointmentTime,
+          bloodBankName,
+          scheduledFor: scheduledDate.toISOString(),
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to log appointment reminder notification activity:', error);
+    }
   }
 
   // Process scheduled notifications (run every hour)
@@ -382,6 +510,27 @@ export class NotificationsService {
     notification.sentAt = new Date();
     await notification.save();
 
+    // Log notification delivery activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.NOTIFICATION_SENT,
+        title: 'Notification Delivered',
+        description: `Notification "${notification.title}" successfully delivered to ${notification.recipientType}`,
+        userId: notification.recipientId.toString(),
+        metadata: {
+          notificationId: (notification as any)._id.toString(),
+          notificationType: notification.type,
+          recipientType: notification.recipientType,
+          recipientId: notification.recipientId.toString(),
+          title: notification.title,
+          sentAt: notification.sentAt.toISOString(),
+          deliveryStatus: 'sent',
+        },
+      });
+    } catch (error) {
+      this.logger.error('Failed to log notification delivery activity:', error);
+    }
+
     // Try to deliver through external channels if available
     try {
       // Get recipient's contact info (this would need to be implemented based on your data model)
@@ -416,6 +565,23 @@ export class NotificationsService {
         this.logger.log(
           `External delivery results for ${notification._id}: ${JSON.stringify(deliveryResults)}`,
         );
+
+        // Log external delivery activity
+        try {
+          await this.adminService.logActivity({
+            activityType: ActivityType.NOTIFICATION_SENT,
+            title: 'External Notification Delivery Attempted',
+            description: `External delivery attempted for notification "${notification.title}"`,
+            userId: notification.recipientId.toString(),
+            metadata: {
+              notificationId: (notification as any)._id.toString(),
+              deliveryResults,
+              externalChannels: Object.keys(deliveryResults),
+            },
+          });
+        } catch (error) {
+          this.logger.error('Failed to log external delivery activity:', error);
+        }
       }
     } catch (error) {
       this.logger.error(

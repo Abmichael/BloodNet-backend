@@ -6,12 +6,14 @@ import {
   MedicalInstitution,
   MedicalInstitutionSchema,
 } from './entities/medical-institution.entity';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: MedicalInstitution.name, schema: MedicalInstitutionSchema },
     ]),
+    AdminModule,
   ],
   controllers: [MedicalInstitutionController],
   providers: [MedicalInstitutionService],

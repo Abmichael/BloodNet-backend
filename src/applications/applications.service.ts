@@ -18,6 +18,8 @@ import { ReviewApplicationDto } from './dto/review-application.dto';
 import { UsersService } from '../users/users.service';
 import { BloodBankService } from '../blood-bank/blood-bank.service';
 import { MedicalInstitutionService } from '../medical-institution/medical-institution.service';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
 import { UserRole } from '../users/schemas/user.schema';
 
 @Injectable()
@@ -28,6 +30,7 @@ export class ApplicationsService {
     private usersService: UsersService,
     private bloodBankService: BloodBankService,
     private medicalInstitutionService: MedicalInstitutionService,
+    private adminService: AdminService,
   ) {}
 
   async create(
@@ -59,7 +62,27 @@ export class ApplicationsService {
       password: hashedPassword,
     });
 
-    return application.save();
+    const savedApplication = await application.save();
+
+    // Log application submission activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.APPLICATION_SUBMITTED,
+        title: `New ${createApplicationDto.role} Application Submitted`,
+        description: `Application submitted for ${createApplicationDto.email} as ${createApplicationDto.role}`,
+        metadata: {
+          applicationId: (savedApplication as any)._id.toString(),
+          email: createApplicationDto.email,
+          role: createApplicationDto.role,
+          applicantName: createApplicationDto.profileData?.name,
+          submittedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log application submission activity:', error);
+    }
+
+    return savedApplication;
   }
 
   findAll() {
@@ -89,6 +112,8 @@ export class ApplicationsService {
       throw new BadRequestException('Application has already been reviewed');
     }
 
+    const previousStatus = application.status;
+
     // Update application status
     application.status = reviewDto.status;
     application.reviewedAt = new Date();
@@ -99,6 +124,46 @@ export class ApplicationsService {
     }
 
     await application.save();
+
+    // Log application review activity
+    try {
+      const activityType = reviewDto.status === ApplicationStatus.APPROVED 
+        ? ActivityType.APPROVAL 
+        : ActivityType.REJECTION;
+      
+      await this.adminService.logActivity({
+        activityType,
+        title: `Application ${reviewDto.status === ApplicationStatus.APPROVED ? 'Approved' : 'Rejected'}`,
+        description: `${application.role} application for ${application.email} was ${reviewDto.status.toLowerCase()} by reviewer`,
+        userId: reviewerId,
+        metadata: {
+          applicationId: (application as any)._id.toString(),
+          applicantEmail: application.email,
+          applicantRole: application.role,
+          previousStatus,
+          newStatus: reviewDto.status,
+          rejectionReason: reviewDto.rejectionReason,
+          reviewedAt: new Date().toISOString(),
+        },
+      });
+
+      // Also log as APPLICATION_REVIEWED for general tracking
+      await this.adminService.logActivity({
+        activityType: ActivityType.APPLICATION_REVIEWED,
+        title: `Application Reviewed - ${reviewDto.status}`,
+        description: `Application review completed for ${application.email}`,
+        userId: reviewerId,
+        metadata: {
+          applicationId: (application as any)._id.toString(),
+          applicantEmail: application.email,
+          applicantRole: application.role,
+          decision: reviewDto.status,
+          reviewedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log application review activity:', error);
+    }
 
     // If approved, create user and related entity
     if (reviewDto.status === ApplicationStatus.APPROVED) {
@@ -137,6 +202,25 @@ export class ApplicationsService {
           { session },
         );
         application.createdEntityId = (bloodBank as any)._id.toString();
+
+        // Log blood bank registration
+        try {
+          await this.adminService.logActivity({
+            activityType: ActivityType.BLOOD_BANK_REGISTERED,
+            title: 'Blood Bank Registered via Application',
+            description: `Blood bank ${application.profileData.name} registered through approved application`,
+            userId: application.createdUserId,
+            metadata: {
+              applicationId: (application as any)._id.toString(),
+              bloodBankId: application.createdEntityId,
+              bloodBankName: application.profileData.name,
+              email: application.email,
+              registeredAt: new Date().toISOString(),
+            },
+          });
+        } catch (error) {
+          console.error('Failed to log blood bank registration activity:', error);
+        }
       } else if (application.role === ApplicationRole.MEDICAL_INSTITUTION) {
         const medicalInstitution = await this.medicalInstitutionService.create(
           {
@@ -148,6 +232,25 @@ export class ApplicationsService {
         application.createdEntityId = (
           medicalInstitution as any
         )._id.toString();
+
+        // Log medical institution registration
+        try {
+          await this.adminService.logActivity({
+            activityType: ActivityType.MEDICAL_INSTITUTION_REGISTERED,
+            title: 'Medical Institution Registered via Application',
+            description: `Medical institution ${application.profileData.name} registered through approved application`,
+            userId: application.createdUserId,
+            metadata: {
+              applicationId: (application as any)._id.toString(),
+              medicalInstitutionId: application.createdEntityId,
+              institutionName: application.profileData.name,
+              email: application.email,
+              registeredAt: new Date().toISOString(),
+            },
+          });
+        } catch (error) {
+          console.error('Failed to log medical institution registration activity:', error);
+        }
       }
 
       await application.save({ session });
@@ -191,6 +294,24 @@ export class ApplicationsService {
     }
 
     await this.applicationModel.findByIdAndDelete(id);
+
+    // Log application deletion activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.REJECTION, // Using REJECTION as it's closest to deletion
+        title: 'Application Deleted',
+        description: `${application.role} application for ${application.email} was deleted`,
+        metadata: {
+          applicationId: (application as any)._id.toString(),
+          applicantEmail: application.email,
+          applicantRole: application.role,
+          previousStatus: application.status,
+          deletedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log application deletion activity:', error);
+    }
   }
 
   async getStatistics() {

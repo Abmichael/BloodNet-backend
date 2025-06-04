@@ -20,6 +20,7 @@ import {
   NotificationDeliveryService,
   NotificationPreferencesService,
 } from './services';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import {
       },
     ]),
     ScheduleModule.forRoot(), // For cron jobs
+    AdminModule,
   ],
   controllers: [NotificationsController, NotificationPreferencesController],
   providers: [

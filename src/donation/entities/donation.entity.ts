@@ -4,11 +4,12 @@ import {
   CollectionMethod,
   DonationStatus,
   DonationType,
+  BloodUnitStatus,
 } from '../donation.constants';
 
 export type DonationDocument = Donation & Document;
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, _id: true })
 export class Donation {
   @Prop({
     type: mongoose.Schema.Types.ObjectId,
@@ -24,6 +25,9 @@ export class Donation {
     required: true,
   })
   bloodBank: Types.ObjectId;
+
+  @Prop({type: String, required: true})
+  bloodType: string; // e.g., 'A+', 'O-', etc.
 
   @Prop({ required: true, type: Date })
   donationDate: Date;
@@ -99,6 +103,44 @@ export class Donation {
 
   @Prop({ type: Boolean, default: true })
   isApproved: boolean;
+
+  // Blood Unit Dispatch/Usage Tracking
+  @Prop({
+    type: String,
+    enum: [...Object.values(BloodUnitStatus)],
+    default: BloodUnitStatus.IN_INVENTORY,
+    required: false,
+  })
+  unitStatus?: BloodUnitStatus;
+
+  @Prop({ type: Date, required: false })
+  dispatchedAt?: Date;
+
+  @Prop({ type: String, required: false })
+  dispatchedTo?: string; // Hospital/Institution name or ID
+
+  @Prop({ type: String, required: false })
+  usedFor?: string; // Patient ID or purpose
+
+  @Prop({ type: Date, required: false })
+  usedAt?: Date;
+
+  @Prop({ type: String, required: false })
+  discardReason?: string; // Reason for discard if applicable
+
+  @Prop({ type: Date, required: false })
+  discardedAt?: Date;
+
+  @Prop({ type: Date, required: false })
+  expiryDate?: Date; // Calculate based on donation date + shelf life
+
+  // Related blood request (if reserved/dispatched for specific request)
+  @Prop({
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'BloodRequest',
+    required: false,
+  })
+  reservedForRequest?: Types.ObjectId;
 }
 
 export const DonationSchema = SchemaFactory.createForClass(Donation);

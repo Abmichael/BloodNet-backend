@@ -8,6 +8,7 @@ import {
 } from './entities/donation-schedule.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BloodBankModule } from '../blood-bank/blood-bank.module';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { BloodBankModule } from '../blood-bank/blood-bank.module';
     ]),
     NotificationsModule,
     BloodBankModule,
+    AdminModule,
   ],
   controllers: [DonationScheduleController],
   providers: [DonationScheduleService],

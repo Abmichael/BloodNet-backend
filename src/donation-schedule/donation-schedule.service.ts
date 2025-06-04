@@ -16,6 +16,8 @@ import {
 import { ApiException } from '../common/filters/exception';
 import { NotificationHelperService } from '../notifications/notification-helper.service';
 import { BloodBankService } from '../blood-bank/blood-bank.service';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
 
 @Injectable()
 export class DonationScheduleService {
@@ -24,6 +26,7 @@ export class DonationScheduleService {
     private donationScheduleModel: Model<DonationScheduleDocument>,
     private notificationHelper: NotificationHelperService,
     private bloodBankService: BloodBankService,
+    private adminService: AdminService,
   ) {}
 
   async create(
@@ -63,6 +66,28 @@ export class DonationScheduleService {
       createDonationScheduleDto,
     );
     const savedSchedule = await createdSchedule.save();
+
+    // Log donation scheduling activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.DONATION_SCHEDULED,
+        title: 'Donation Appointment Scheduled',
+        description: `Donation appointment scheduled for ${new Date(createDonationScheduleDto.scheduledDate).toLocaleDateString()} at ${createDonationScheduleDto.timeSlot}`,
+        userId: createDonationScheduleDto.donor,
+        metadata: {
+          scheduleId: (savedSchedule as any)._id.toString(),
+          donorId: createDonationScheduleDto.donor,
+          bloodBankId: createDonationScheduleDto.bloodBank,
+          scheduledDate: createDonationScheduleDto.scheduledDate,
+          timeSlot: createDonationScheduleDto.timeSlot,
+          scheduledBy: createDonationScheduleDto.scheduledBy,
+          status: ScheduleStatus.SCHEDULED,
+          createdAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log donation scheduling activity:', error);
+    }
 
     // Schedule appointment reminder notification
     await this.scheduleAppointmentReminder(savedSchedule);
@@ -162,6 +187,57 @@ export class DonationScheduleService {
       .populate('completedDonation')
       .exec();
 
+    // Log status change activity
+    if (updateDonationScheduleDto.status && existingSchedule.status !== updateDonationScheduleDto.status) {
+      try {
+        let activityType: ActivityType;
+        let title: string;
+        let description: string;
+
+        switch (updateDonationScheduleDto.status) {
+          case ScheduleStatus.CONFIRMED:
+            activityType = ActivityType.DONATION_SCHEDULED;
+            title = 'Donation Appointment Confirmed';
+            description = `Donation appointment confirmed for ${new Date(updatedSchedule!.scheduledDate).toLocaleDateString()}`;
+            break;
+          case ScheduleStatus.CANCELLED:
+            activityType = ActivityType.DONATION_CANCELLED;
+            title = 'Donation Appointment Cancelled';
+            description = `Donation appointment cancelled. Reason: ${updateDonationScheduleDto.cancellationReason || 'Not specified'}`;
+            break;
+          case ScheduleStatus.COMPLETED:
+            activityType = ActivityType.DONATION_COMPLETED;
+            title = 'Donation Appointment Completed';
+            description = 'Donation appointment completed successfully';
+            break;
+          default:
+            activityType = ActivityType.DONATION_SCHEDULED;
+            title = 'Donation Schedule Updated';
+            description = `Donation schedule status changed from ${existingSchedule.status} to ${updateDonationScheduleDto.status}`;
+        }
+
+        await this.adminService.logActivity({
+          activityType,
+          title,
+          description,
+          userId: existingSchedule.donor.toString(),
+          metadata: {
+            scheduleId: id,
+            donorId: existingSchedule.donor.toString(),
+            bloodBankId: existingSchedule.bloodBank.toString(),
+            previousStatus: existingSchedule.status,
+            newStatus: updateDonationScheduleDto.status,
+            scheduledDate: updatedSchedule!.scheduledDate,
+            timeSlot: updatedSchedule!.timeSlot,
+            cancellationReason: updateDonationScheduleDto.cancellationReason,
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to log donation schedule update activity:', error);
+      }
+    }
+
     return updatedSchedule!;
   }
 
@@ -180,6 +256,27 @@ export class DonationScheduleService {
       throw new ApiException([
         { field: 'id', message: `Donation schedule with ID ${id} not found` },
       ]);
+    }
+
+    // Log schedule deletion activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.DONATION_CANCELLED,
+        title: 'Donation Schedule Deleted',
+        description: `Donation schedule removed from system`,
+        userId: deletedSchedule.donor.toString(),
+        metadata: {
+          scheduleId: id,
+          donorId: deletedSchedule.donor.toString(),
+          bloodBankId: deletedSchedule.bloodBank.toString(),
+          scheduledDate: deletedSchedule.scheduledDate,
+          timeSlot: deletedSchedule.timeSlot,
+          previousStatus: deletedSchedule.status,
+          deletedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log donation schedule deletion activity:', error);
     }
 
     return deletedSchedule;

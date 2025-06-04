@@ -1,19 +1,21 @@
 import { Injectable } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { DonorService } from '../donor/donor.service';
 import { BloodBankService } from '../blood-bank/blood-bank.service';
 import { MedicalInstitutionService } from '../medical-institution/medical-institution.service';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
-import { UserDocument, UserRole } from 'src/users/schemas/user.schema';
 import {
-  ApiException,
+  ValidationException,
   AuthenticationException,
   AuthorizationException,
-  ValidationException,
-} from 'src/common/filters/exception';
-import mongoose from 'mongoose';
+} from '../common/filters/exception';
+import { UserRole } from '../users/schemas/user.schema';
+import { UserDocument } from '../users/schemas/user.schema';
+import * as mongoose from 'mongoose';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
 
 @Injectable()
 export class AuthService {
@@ -23,6 +25,7 @@ export class AuthService {
     private bloodBankService: BloodBankService,
     private medicalInstitutionService: MedicalInstitutionService,
     private jwtService: JwtService,
+    private adminService: AdminService,
   ) {}
   async validateUser(email: string, pass: string): Promise<any> {
     const user = await this.usersService.findByEmail(email);
@@ -53,6 +56,26 @@ export class AuthService {
     const { password, ...userWithoutPassword } = user.toObject
       ? user.toObject()
       : user;
+
+    // Log user login activity only for admin users
+    if (user.role === UserRole.ADMIN) {
+      try {
+        await this.adminService.logActivity({
+          activityType: ActivityType.USER_LOGIN,
+          title: 'User Login',
+          description: `Admin user ${user.email} logged in successfully`,
+          userId: (user as any)._id.toString(),
+          metadata: {
+            email: user.email,
+            role: user.role,
+            loginTime: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to log login activity:', error);
+      }
+    }
+
     return {
       access_token: this.jwtService.sign(payload),
       user: userWithoutPassword,
@@ -75,8 +98,13 @@ export class AuthService {
 
     const isSelfRegistration = !currentUser;
 
-    if (!isSelfRegistration && ['hospital', 'blood-bank'].includes(dto.role)) {
-      if (currentUser.role !== 'admin') {
+    if (
+      !isSelfRegistration &&
+      [UserRole.MEDICAL_INSTITUTION, UserRole.BLOOD_BANK].includes(
+        dto.role as UserRole,
+      )
+    ) {
+      if (currentUser.role !== UserRole.ADMIN) {
         throw new AuthorizationException([
           {
             message: 'Only admins can create hospital/blood-bank users',
@@ -87,7 +115,7 @@ export class AuthService {
       }
     }
 
-    if (isSelfRegistration && dto.role !== 'donor') {
+    if (isSelfRegistration && dto.role !== UserRole.DONOR) {
       throw new ValidationException([
         {
           field: 'role',
@@ -102,6 +130,43 @@ export class AuthService {
       ...dto,
       password: hashed,
     });
+
+    // Log registration activity
+    try {
+      let activityType = ActivityType.REGISTRATION;
+      let activityTitle = 'User Registration';
+
+      // Use specific activity types for different roles
+      if (dto.role === UserRole.DONOR) {
+        activityType = ActivityType.DONOR_REGISTERED;
+        activityTitle = 'Donor Registration';
+      } else if (dto.role === UserRole.BLOOD_BANK) {
+        activityType = ActivityType.BLOOD_BANK_REGISTERED;
+        activityTitle = 'Blood Bank Registration';
+      } else if (dto.role === UserRole.MEDICAL_INSTITUTION) {
+        activityType = ActivityType.MEDICAL_INSTITUTION_REGISTERED;
+        activityTitle = 'Medical Institution Registration';
+      }
+
+      await this.adminService.logActivity({
+        activityType,
+        title: activityTitle,
+        description: `New ${dto.role} registered: ${dto.email}`,
+        userId: user._id as string,
+        metadata: {
+          email: dto.email,
+          name: dto.name,
+          role: dto.role,
+          selfRegistration: isSelfRegistration,
+          registeredBy: currentUser
+            ? (currentUser as any)._id.toString()
+            : null,
+          registrationTime: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log registration activity:', error);
+    }
 
     if (isSelfRegistration) {
       const token = this.jwtService.sign({ sub: user._id, role: user.role });

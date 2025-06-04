@@ -3,10 +3,15 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, ClientSession } from 'mongoose';
 import { User, UserDocument } from './schemas/user.schema';
 import { ApiException } from 'src/common/filters/exception';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private adminService: AdminService,
+  ) {}
 
   async findByEmail(email: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ email }).exec();
@@ -56,6 +61,26 @@ export class UsersService {
         404,
       );
     }
+
+    // Log profile completion status update
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.PROFILE_UPDATED,
+        title: profileComplete ? 'Profile Completed' : 'Profile Status Updated',
+        description: `User profile completion status changed to ${profileComplete ? 'complete' : 'incomplete'}`,
+        userId: userId,
+        metadata: {
+          userId: userId,
+          email: updatedUser.email,
+          role: updatedUser.role,
+          profileComplete,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log profile status update activity:', error);
+    }
+
     return updatedUser;
   }
 }

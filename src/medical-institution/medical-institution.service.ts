@@ -7,12 +7,15 @@ import {
   MedicalInstitution,
   MedicalInstitutionDocument,
 } from './entities/medical-institution.entity';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
 
 @Injectable()
 export class MedicalInstitutionService {
   constructor(
     @InjectModel(MedicalInstitution.name)
     private medicalInstitutionModel: Model<MedicalInstitutionDocument>,
+    private adminService: AdminService,
   ) {}
 
   async create(
@@ -29,7 +32,34 @@ export class MedicalInstitutionService {
       },
     });
 
-    return institution.save(options);
+    const savedInstitution = await institution.save(options);
+
+    // Log medical institution registration activity (only if not created via application process)
+    if (!options?.session) {
+      try {
+        await this.adminService.logActivity({
+          activityType: ActivityType.MEDICAL_INSTITUTION_REGISTERED,
+          title: 'Medical Institution Registered',
+          description: `Medical institution ${dto.name} registered directly in the system`,
+          userId: dto.user?.toString(),
+          metadata: {
+            institutionId: (savedInstitution as any)._id.toString(),
+            institutionName: dto.name,
+            institutionType: dto.type,
+            registrationNumber: dto.registrationNumber,
+            phoneNumber: dto.phoneNumber,
+            email: dto.email,
+            city: dto.city,
+            state: dto.state,
+            registeredAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to log medical institution registration activity:', error);
+      }
+    }
+
+    return savedInstitution;
   }
 
   findAll() {
@@ -40,7 +70,8 @@ export class MedicalInstitutionService {
     return this.medicalInstitutionModel.findById(id);
   }
 
-  update(id: string, dto: UpdateMedicalInstitutionDto) {
+  async update(id: string, dto: UpdateMedicalInstitutionDto) {
+    const existingInstitution = await this.medicalInstitutionModel.findById(id);
     const updateData: any = { ...dto };
 
     if (dto.coordinates) {
@@ -51,9 +82,44 @@ export class MedicalInstitutionService {
       delete updateData.coordinates;
     }
 
-    return this.medicalInstitutionModel.findByIdAndUpdate(id, updateData, {
+    const updatedInstitution = await this.medicalInstitutionModel.findByIdAndUpdate(id, updateData, {
       new: true,
     });
+
+    // Log medical institution profile update activity
+    if (updatedInstitution && existingInstitution) {
+      try {
+        await this.adminService.logActivity({
+          activityType: ActivityType.PROFILE_UPDATED,
+          title: 'Medical Institution Profile Updated',
+          description: `Medical institution ${updatedInstitution.name} profile was updated`,
+          userId: (updatedInstitution as any).user?.toString(),
+          metadata: {
+            institutionId: id,
+            institutionName: updatedInstitution.name,
+            previousData: {
+              name: existingInstitution.name,
+              type: existingInstitution.type,
+              phoneNumber: existingInstitution.phoneNumber,
+              email: existingInstitution.email,
+              isActive: existingInstitution.isActive,
+            },
+            newData: {
+              name: updatedInstitution.name,
+              type: updatedInstitution.type,
+              phoneNumber: updatedInstitution.phoneNumber,
+              email: updatedInstitution.email,
+              isActive: updatedInstitution.isActive,
+            },
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to log medical institution profile update activity:', error);
+      }
+    }
+
+    return updatedInstitution;
   }
 
   remove(id: string) {

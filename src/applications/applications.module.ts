@@ -6,6 +6,7 @@ import { Application, ApplicationSchema } from './entities/application.entity';
 import { UsersModule } from '../users/users.module';
 import { BloodBankModule } from '../blood-bank/blood-bank.module';
 import { MedicalInstitutionModule } from '../medical-institution/medical-institution.module';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { MedicalInstitutionModule } from '../medical-institution/medical-institu
     UsersModule,
     BloodBankModule,
     MedicalInstitutionModule,
+    AdminModule,
   ],
   controllers: [ApplicationsController],
   providers: [ApplicationsService],

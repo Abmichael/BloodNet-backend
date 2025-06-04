@@ -13,6 +13,10 @@ import { NotificationHelperService } from '../notifications/notification-helper.
 import { DonorService } from '../donor/donor.service';
 import { BloodBankService } from '../blood-bank/blood-bank.service';
 import { BloodType } from '../donor/entities/donor.entity';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
+import { DonationService } from '../donation/donation.service';
+import { forwardRef, Inject } from '@nestjs/common';
 
 @Injectable()
 export class BloodRequestService {
@@ -22,6 +26,9 @@ export class BloodRequestService {
     private notificationHelper: NotificationHelperService,
     private donorService: DonorService,
     private bloodBankService: BloodBankService,
+    private adminService: AdminService,
+    @Inject(forwardRef(() => DonationService))
+    private donationService: DonationService,
   ) {}
   async create(dto: CreateBloodRequestDto & { requestedBy: string }) {
     const { coordinates, ...rest } = dto;
@@ -35,6 +42,23 @@ export class BloodRequestService {
     });
 
     const savedRequest = await request.save();
+
+    // Log the blood request creation activity
+    await this.adminService.logActivity({
+      activityType: ActivityType.BLOOD_REQUEST,
+      title: 'New Blood Request Created',
+      description: `Blood request for ${savedRequest.bloodType}${savedRequest.RhFactor} blood type created`,
+      userId: dto.requestedBy,
+      metadata: {
+        requestId: savedRequest._id as string,
+        bloodType: savedRequest.bloodType,
+        rhFactor: savedRequest.RhFactor,
+        priority: savedRequest.priority,
+        unitsNeeded: savedRequest.unitsRequired,
+        location: savedRequest.location,
+        urgency: savedRequest.priority,
+      },
+    });
 
     // Automatically send notifications if enabled
     if (savedRequest.notifyNearbyDonors) {
@@ -410,18 +434,54 @@ export class BloodRequestService {
       })
       .sort({ priority: -1, requiredBy: 1 });
   }
-  updateStatus(id: string, status: RequestStatus) {
-    return this.bloodRequestModel.findByIdAndUpdate(
+  async updateStatus(id: string, status: RequestStatus) {
+    const previousRequest = await this.bloodRequestModel.findById(id);
+    
+    const updatedRequest = await this.bloodRequestModel.findByIdAndUpdate(
       id,
       { status },
       { new: true },
     );
+
+    if (updatedRequest && previousRequest) {
+      // Log the status change activity
+      await this.adminService.logActivity({
+        activityType: ActivityType.BLOOD_REQUEST,
+        title: 'Blood Request Status Updated',
+        description: `Blood request status changed from ${previousRequest.status} to ${status}`,
+        userId: updatedRequest.requestedBy.toString(),
+        metadata: {
+          requestId: id,
+          previousStatus: previousRequest.status,
+          newStatus: status,
+          bloodType: updatedRequest.bloodType,
+          rhFactor: updatedRequest.RhFactor,
+        },
+      });
+    }
+
+    return updatedRequest;
   }
 
   async fulfillBloodRequest(id: string, fulfilledByBloodBank: string) {
     const bloodRequest = await this.updateStatus(id, RequestStatus.FULFILLED);
 
     if (bloodRequest) {
+      // Log the fulfillment activity
+      await this.adminService.logActivity({
+        activityType: ActivityType.BLOOD_REQUEST_FULFILLED,
+        title: 'Blood Request Fulfilled',
+        description: `Blood request fulfilled by blood bank`,
+        userId: bloodRequest.requestedBy.toString(),
+        metadata: {
+          requestId: id,
+          bloodType: bloodRequest.bloodType,
+          rhFactor: bloodRequest.RhFactor,
+          fulfilledBy: fulfilledByBloodBank,
+          fulfilledAt: new Date(),
+        },
+      });
+
       await this.notificationHelper.notifyBloodRequestFulfilled(
         bloodRequest.requestedBy.toString(),
         id,
@@ -431,5 +491,57 @@ export class BloodRequestService {
     }
 
     return bloodRequest;
+  }
+
+  /**
+   * Enhanced fulfillment method that links blood units to the request
+   */
+  async fulfillBloodRequestWithUnits(
+    requestId: string, 
+    fulfilledByBloodBank: string,
+    bloodUnitIds: string[]
+  ) {
+    const bloodRequest = await this.bloodRequestModel.findById(requestId);
+    if (!bloodRequest) {
+      throw new Error('Blood request not found');
+    }
+
+    // Reserve the blood units for this request
+    for (const unitId of bloodUnitIds) {
+      await this.donationService.reserveForRequest(unitId, requestId);
+    }
+
+    // Update blood request status
+    const fulfilledRequest = await this.updateStatus(requestId, RequestStatus.FULFILLED);
+
+    if (fulfilledRequest) {
+      // Log the fulfillment activity
+      await this.adminService.logActivity({
+        activityType: ActivityType.BLOOD_REQUEST_FULFILLED,
+        title: 'Blood Request Fulfilled with Blood Units',
+        description: `Blood request fulfilled with ${bloodUnitIds.length} blood units`,
+        userId: fulfilledRequest.requestedBy.toString(),
+        metadata: {
+          requestId,
+          bloodType: fulfilledRequest.bloodType,
+          rhFactor: fulfilledRequest.RhFactor,
+          fulfilledBy: fulfilledByBloodBank,
+          bloodUnitIds,
+          fulfilledAt: new Date(),
+        },
+      });
+
+      await this.notificationHelper.notifyBloodRequestFulfilled(
+        fulfilledRequest.requestedBy.toString(),
+        requestId,
+        fulfilledRequest.bloodType,
+        fulfilledByBloodBank,
+      );
+    }
+
+    return {
+      request: fulfilledRequest,
+      reservedUnits: bloodUnitIds,
+    };
   }
 }

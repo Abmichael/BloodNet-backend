@@ -7,6 +7,7 @@ import { UsersModule } from '../users/users.module';
 import { DonorModule } from '../donor/donor.module';
 import { BloodBankModule } from '../blood-bank/blood-bank.module';
 import { MedicalInstitutionModule } from '../medical-institution/medical-institution.module';
+import { AdminModule } from '../admin/admin.module';
 import { JwtStrategy } from './jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
@@ -16,6 +17,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     DonorModule,
     BloodBankModule,
     MedicalInstitutionModule,
+    AdminModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

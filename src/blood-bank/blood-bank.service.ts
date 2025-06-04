@@ -8,12 +8,15 @@ import { UpdateBloodBankDto } from './dto/update-blood-bank.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, ClientSession, Types } from 'mongoose';
 import { BloodBank, BloodBankDocument } from './entities/blood-bank.entity';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
 
 @Injectable()
 export class BloodBankService {
   constructor(
     @InjectModel(BloodBank.name)
     private readonly bloodBankModel: Model<BloodBankDocument>,
+    private adminService: AdminService,
   ) {}
 
   async create(
@@ -21,7 +24,32 @@ export class BloodBankService {
     options?: { session?: ClientSession },
   ) {
     const created = new this.bloodBankModel(createDto);
-    return await created.save(options);
+    const savedBloodBank = await created.save(options);
+
+    // Log blood bank registration activity (only if not created via application process)
+    if (!options?.session) {
+      try {
+        await this.adminService.logActivity({
+          activityType: ActivityType.BLOOD_BANK_REGISTERED,
+          title: 'Blood Bank Registered',
+          description: `Blood bank ${createDto.name} registered directly in the system`,
+          metadata: {
+            bloodBankId: (savedBloodBank as any)._id.toString(),
+            bloodBankName: createDto.name,
+            city: createDto.city,
+            state: createDto.state,
+            contactNumber: createDto.contactNumber,
+            email: createDto.email,
+            bloodTypesAvailable: createDto.bloodTypesAvailable,
+            registeredAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to log blood bank registration activity:', error);
+      }
+    }
+
+    return savedBloodBank;
   }
   findAll() {
     return this.bloodBankModel.find();
@@ -40,12 +68,43 @@ export class BloodBankService {
   }
 
   async update(id: string, updateDto: UpdateBloodBankDto) {
+    const existingBloodBank = await this.bloodBankModel.findById(id);
+    if (!existingBloodBank) {
+      throw new NotFoundException(`Blood bank with ID ${id} not found`);
+    }
+
     const updated = await this.bloodBankModel.findByIdAndUpdate(id, updateDto, {
       new: true,
     });
 
-    if (!updated) {
-      throw new NotFoundException(`Blood bank with ID ${id} not found`);
+    // Log blood bank profile update activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.PROFILE_UPDATED,
+        title: 'Blood Bank Profile Updated',
+        description: `Blood bank ${updated!.name} profile was updated`,
+        metadata: {
+          bloodBankId: id,
+          bloodBankName: updated!.name,
+          previousData: {
+            name: existingBloodBank.name,
+            contactNumber: existingBloodBank.contactNumber,
+            email: existingBloodBank.email,
+            bloodTypesAvailable: existingBloodBank.bloodTypesAvailable,
+            isActive: existingBloodBank.isActive,
+          },
+          newData: {
+            name: updated!.name,
+            contactNumber: updated!.contactNumber,
+            email: updated!.email,
+            bloodTypesAvailable: updated!.bloodTypesAvailable,
+            isActive: updated!.isActive,
+          },
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log blood bank profile update activity:', error);
     }
 
     return updated;
@@ -128,8 +187,29 @@ export class BloodBankService {
   }
   async updateBloodTypesAvailable(id: string, bloodTypes: string[]) {
     const bloodBank = await this.findOne(id);
+    const previousBloodTypes = bloodBank.bloodTypesAvailable;
     bloodBank.bloodTypesAvailable = bloodTypes;
-    return bloodBank.save();
+    const savedBloodBank = await bloodBank.save();
+
+    // Log inventory update activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.INVENTORY_UPDATE,
+        title: 'Blood Types Availability Updated',
+        description: `Blood types availability updated for ${bloodBank.name}`,
+        metadata: {
+          bloodBankId: id,
+          bloodBankName: bloodBank.name,
+          previousBloodTypes,
+          newBloodTypes: bloodTypes,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log blood types update activity:', error);
+    }
+
+    return savedBloodBank;
   }
 
   /**

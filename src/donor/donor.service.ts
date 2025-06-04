@@ -5,15 +5,42 @@ import { Model, Types } from 'mongoose';
 import { CreateDonorDto } from './dto/create-donor.dto';
 import { UpdateDonorDto } from './dto/update-donor.dto';
 import { Donor, DonorDocument } from './entities/donor.entity';
+import { AdminService } from '../admin/admin.service';
+import { ActivityType } from '../admin/entities/activity-log.entity';
 
 @Injectable()
 export class DonorService {
   constructor(
     @InjectModel(Donor.name) private readonly donorModel: Model<DonorDocument>,
+    private adminService: AdminService,
   ) {}
 
   async create(createDonorDto: CreateDonorDto) {
-    return this.donorModel.create(createDonorDto);
+    const createdDonor = await this.donorModel.create(createDonorDto);
+
+    // Log donor registration activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.DONOR_REGISTERED,
+        title: 'New Donor Registered',
+        description: `Donor ${createDonorDto.firstName} ${createDonorDto.lastName} registered with blood type ${createDonorDto.bloodType}${createDonorDto.RhFactor}`,
+        userId: createDonorDto.user?.toString(),
+        metadata: {
+          donorId: (createdDonor as any)._id.toString(),
+          donorName: `${createDonorDto.firstName} ${createDonorDto.lastName}`,
+          bloodType: createDonorDto.bloodType,
+          rhFactor: createDonorDto.RhFactor,
+          phoneNumber: createDonorDto.phoneNumber,
+          email: createDonorDto.email,
+          isEligible: createDonorDto.isEligible,
+          registeredAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log donor registration activity:', error);
+    }
+
+    return createdDonor;
   }
 
   findAll() {
@@ -36,9 +63,49 @@ export class DonorService {
   }
 
   async update(id: string, updateDonorDto: UpdateDonorDto) {
-    return this.donorModel.findByIdAndUpdate(id, updateDonorDto, {
+    const existingDonor = await this.donorModel.findById(id);
+    const updatedDonor = await this.donorModel.findByIdAndUpdate(id, updateDonorDto, {
       new: true,
     });
+
+    // Log profile update activity
+    if (updatedDonor && existingDonor) {
+      try {
+        await this.adminService.logActivity({
+          activityType: ActivityType.PROFILE_UPDATED,
+          title: 'Donor Profile Updated',
+          description: `Donor profile updated for ${updatedDonor.firstName} ${updatedDonor.lastName}`,
+          userId: updatedDonor.user?.toString(),
+          metadata: {
+            donorId: id,
+            donorName: `${updatedDonor.firstName} ${updatedDonor.lastName}`,
+            previousData: {
+              firstName: existingDonor.firstName,
+              lastName: existingDonor.lastName,
+              phoneNumber: existingDonor.phoneNumber,
+              email: existingDonor.email,
+              bloodType: existingDonor.bloodType,
+              rhFactor: existingDonor.RhFactor,
+              isEligible: existingDonor.isEligible,
+            },
+            newData: {
+              firstName: updatedDonor.firstName,
+              lastName: updatedDonor.lastName,
+              phoneNumber: updatedDonor.phoneNumber,
+              email: updatedDonor.email,
+              bloodType: updatedDonor.bloodType,
+              rhFactor: updatedDonor.RhFactor,
+              isEligible: updatedDonor.isEligible,
+            },
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      } catch (error) {
+        console.error('Failed to log donor profile update activity:', error);
+      }
+    }
+
+    return updatedDonor;
   }
 
   async updateDonationInfo(

@@ -14,7 +14,7 @@ export enum ApplicationRole {
   MEDICAL_INSTITUTION = 'medical_institution',
 }
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, _id: true })
 export class Application {
   @Prop({ required: true, unique: true })
   email: string;
