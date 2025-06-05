@@ -25,8 +25,8 @@ export class DonorService {
     if (createDonorDto.user) {
       try {
         await this.usersService.setDonorAssociation(
-          createDonorDto.user.toString(),
-          (createdDonor as any)._id.toString()
+          createDonorDto.user,
+          (createdDonor as any)._id.toString(),
         );
       } catch (error) {
         console.error('Failed to set donor association in user record:', error);
@@ -39,7 +39,7 @@ export class DonorService {
         activityType: ActivityType.DONOR_REGISTERED,
         title: 'New Donor Registered',
         description: `Donor ${createDonorDto.firstName} ${createDonorDto.lastName} registered with blood type ${createDonorDto.bloodType}${createDonorDto.RhFactor}`,
-        userId: createDonorDto.user?.toString(),
+        userId: createDonorDto.user,
         metadata: {
           donorId: (createdDonor as any)._id.toString(),
           donorName: `${createDonorDto.firstName} ${createDonorDto.lastName}`,
@@ -79,9 +79,13 @@ export class DonorService {
 
   async update(id: string, updateDonorDto: UpdateDonorDto) {
     const existingDonor = await this.donorModel.findById(id);
-    const updatedDonor = await this.donorModel.findByIdAndUpdate(id, updateDonorDto, {
-      new: true,
-    });
+    const updatedDonor = await this.donorModel.findByIdAndUpdate(
+      id,
+      updateDonorDto,
+      {
+        new: true,
+      },
+    );
 
     // Handle user association changes
     if (updatedDonor && existingDonor && updateDonorDto.user !== undefined) {
@@ -180,17 +184,24 @@ export class DonorService {
     // Find the donor first to get their data for logging and user association cleanup
     const existingDonor = await this.donorModel.findById(id).exec();
     if (!existingDonor) {
-      throw new ApiException([
-        { field: 'id', message: `Donor with ID ${id} not found` },
-      ], 404);
+      throw new ApiException(
+        [{ field: 'id', message: `Donor with ID ${id} not found` }],
+        404,
+      );
     }
 
     // Clear user association if exists
     if (existingDonor.user) {
       try {
-        await this.usersService.setDonorAssociation(existingDonor.user.toString(), null);
+        await this.usersService.setDonorAssociation(
+          existingDonor.user.toString(),
+          null,
+        );
       } catch (error) {
-        console.error('Failed to clear donor association from user record:', error);
+        console.error(
+          'Failed to clear donor association from user record:',
+          error,
+        );
         // Continue with deletion even if association cleanup fails
       }
     }

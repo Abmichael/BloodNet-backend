@@ -31,7 +31,7 @@ export class LocationDto {
 export class CreateDonorDto {
   @IsMongoId()
   @IsOptional()
-  user: string;
+  user?: string;
 
   // Personal Information
   @IsString()

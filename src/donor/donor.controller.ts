@@ -32,7 +32,12 @@ export class DonorController {
 
   @Post()
   create(@Body() dto: CreateDonorDto, @Req() req: any) {
-    return this.donorService.create({ ...dto, user: req.user._id });
+    let user;
+
+    if (req.user && req.user.role) {
+      user = req.user._id;
+    }
+    return this.donorService.create({ ...dto, user });
   }
 
   @Get()
