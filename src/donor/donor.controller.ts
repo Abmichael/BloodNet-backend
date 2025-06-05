@@ -22,7 +22,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserRole } from 'src/users/schemas/user.schema';
 import { DonationService } from '../donation/donation.service';
 
-@Roles(UserRole.ADMIN, UserRole.DONOR)
+@Roles(UserRole.ADMIN, UserRole.DONOR, UserRole.BLOOD_BANK)
 @Controller('donors')
 export class DonorController {
   constructor(

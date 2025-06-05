@@ -18,7 +18,7 @@ import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserRole } from 'src/users/schemas/user.schema';
 import { RequestStatus } from './entities/blood-request.entity';
 
-@Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
+@Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR, UserRole.BLOOD_BANK)
 @Controller('blood-requests')
 export class BloodRequestController {
   constructor(private readonly bloodRequestService: BloodRequestService) {}
@@ -32,7 +32,6 @@ export class BloodRequestController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   async findAll(@Query() query: ExtendedQueryString, @Req() req: any) {
     let baseQuery;
 
@@ -64,7 +63,6 @@ export class BloodRequestController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   findOne(@Param('id') id: string) {
     return this.bloodRequestService.findOne(id);
   }

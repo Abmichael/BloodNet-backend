@@ -6,9 +6,14 @@ import {
   IsArray,
   IsBoolean,
   IsNumber,
+  IsMongoId,
 } from 'class-validator';
 
 export class CreateMedicalInstitutionDto {
+  @IsMongoId()
+  @IsOptional()
+  user?: string;
+
   @IsString()
   name: string;
 

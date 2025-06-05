@@ -10,6 +10,7 @@ import { Model, ClientSession, Types } from 'mongoose';
 import { BloodBank, BloodBankDocument } from './entities/blood-bank.entity';
 import { AdminService } from '../admin/admin.service';
 import { ActivityType } from '../admin/entities/activity-log.entity';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class BloodBankService {
@@ -17,6 +18,7 @@ export class BloodBankService {
     @InjectModel(BloodBank.name)
     private readonly bloodBankModel: Model<BloodBankDocument>,
     private adminService: AdminService,
+    private usersService: UsersService,
   ) {}
 
   async create(
@@ -25,6 +27,21 @@ export class BloodBankService {
   ) {
     const created = new this.bloodBankModel(createDto);
     const savedBloodBank = await created.save(options);
+
+    // Set user association if user is provided
+    if (createDto.user) {
+      try {
+        await this.usersService.setBloodBankAssociation(
+          createDto.user.toString(),
+          (savedBloodBank as any)._id.toString(),
+        );
+      } catch (error) {
+        console.error(
+          'Failed to set blood bank association in user record:',
+          error,
+        );
+      }
+    }
 
     // Log blood bank registration activity (only if not created via application process)
     if (!options?.session) {
@@ -52,7 +69,9 @@ export class BloodBankService {
     return savedBloodBank;
   }
   findAll() {
-    return this.bloodBankModel.find();
+    return this.bloodBankModel
+      .find()
+      .populate({ path: 'user', select: 'name phoneNumber email createdAt' });
   }
 
   async findByUser(userId: Types.ObjectId | string) {
@@ -60,7 +79,10 @@ export class BloodBankService {
   }
 
   async findOne(id: string) {
-    const bloodBank = await this.bloodBankModel.findById(id).exec();
+    const bloodBank = await this.bloodBankModel
+      .findById(id)
+      .populate({ path: 'user', select: 'name phoneNumber email createdAt' })
+      .exec();
     if (!bloodBank) {
       throw new NotFoundException(`Blood bank with ID ${id} not found`);
     }
@@ -76,6 +98,35 @@ export class BloodBankService {
     const updated = await this.bloodBankModel.findByIdAndUpdate(id, updateDto, {
       new: true,
     });
+
+    // Handle user association changes
+    if (updated && existingBloodBank && updateDto.user !== undefined) {
+      const previousUserId = existingBloodBank.user?.toString();
+      const newUserId = updateDto.user;
+
+      // If user association is being changed or removed
+      if (previousUserId !== newUserId) {
+        try {
+          // Clear previous user's blood bank association if exists
+          if (previousUserId) {
+            await this.usersService.setBloodBankAssociation(
+              previousUserId,
+              null,
+            );
+          }
+
+          // Set new user's blood bank association if provided
+          if (newUserId) {
+            await this.usersService.setBloodBankAssociation(newUserId, id);
+          }
+        } catch (error) {
+          console.error(
+            'Failed to update user association for blood bank:',
+            error,
+          );
+        }
+      }
+    }
 
     // Log blood bank profile update activity
     try {
@@ -111,13 +162,67 @@ export class BloodBankService {
   }
 
   async remove(id: string) {
-    const deleted = await this.bloodBankModel.findByIdAndDelete(id);
+    // Validate ID format
+    if (!id || typeof id !== 'string') {
+      throw new BadRequestException(
+        'Blood bank ID is required and must be a string',
+      );
+    }
 
-    if (!deleted) {
+    // Find the blood bank first to get their data for logging and user association cleanup
+    const existingBloodBank = await this.bloodBankModel.findById(id).exec();
+    if (!existingBloodBank) {
       throw new NotFoundException(`Blood bank with ID ${id} not found`);
     }
 
-    return deleted;
+    // Clear user association if exists
+    if (existingBloodBank.user) {
+      try {
+        await this.usersService.setBloodBankAssociation(
+          existingBloodBank.user.toString(),
+          null,
+        );
+      } catch (error) {
+        console.error(
+          'Failed to clear blood bank association from user record:',
+          error,
+        );
+        // Continue with deletion even if association cleanup fails
+      }
+    }
+
+    // Delete the blood bank
+    const deletedBloodBank = await this.bloodBankModel
+      .findByIdAndDelete(id)
+      .exec();
+    if (!deletedBloodBank) {
+      throw new NotFoundException(`Failed to delete blood bank with ID ${id}`);
+    }
+
+    // Log blood bank deletion activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.PROFILE_UPDATED, // Using PROFILE_UPDATED as it's the closest available type
+        title: 'Blood Bank Profile Deleted',
+        description: `Blood bank ${deletedBloodBank.name} was deleted from the system`,
+        userId: deletedBloodBank.user?.toString(),
+        metadata: {
+          bloodBankId: id,
+          bloodBankName: deletedBloodBank.name,
+          address: deletedBloodBank.address,
+          contactNumber: deletedBloodBank.contactNumber,
+          email: deletedBloodBank.email,
+          isActive: deletedBloodBank.isActive,
+          licenseNumber: deletedBloodBank.licenseNumber,
+          userId: deletedBloodBank.user?.toString(),
+          deletedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log blood bank deletion activity:', error);
+    }
+
+    return deletedBloodBank;
   }
   async findByCoordinates(
     latitude: number,

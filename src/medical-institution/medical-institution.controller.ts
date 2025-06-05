@@ -17,7 +17,7 @@ import { QueryFilter, ExtendedQueryString } from '../common/filters/query';
 import { Roles } from 'src/common/decorators/roles.decorator';
 import { UserRole } from 'src/users/schemas/user.schema';
 
-@Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION)
+@Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.BLOOD_BANK, UserRole.DONOR)
 @Controller('medical-institutions')
 export class MedicalInstitutionController {
   constructor(
@@ -33,7 +33,7 @@ export class MedicalInstitutionController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR, UserRole.BLOOD_BANK)
   async findAll(@Query() query: ExtendedQueryString) {
     const baseQuery = this.medicalInstitutionService.findAll();
 
@@ -52,7 +52,7 @@ export class MedicalInstitutionController {
   }
 
   @Get('nearby')
-  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
+  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR, UserRole.BLOOD_BANK)
   async findNearby(
     @Query('lng') lng: number,
     @Query('lat') lat: number,
@@ -83,7 +83,6 @@ export class MedicalInstitutionController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION, UserRole.DONOR)
   findOne(@Param('id') id: string) {
     return this.medicalInstitutionService.findOne(id);
   }

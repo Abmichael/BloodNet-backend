@@ -65,6 +65,4 @@ export type ActivityLogDocument = ActivityLog &
 export const ActivityLogSchema = SchemaFactory.createForClass(ActivityLog);
 
 // Indexes for better performance
-ActivityLogSchema.index({ activityType: 1 });
 ActivityLogSchema.index({ createdAt: -1 });
-ActivityLogSchema.index({ userId: 1 });

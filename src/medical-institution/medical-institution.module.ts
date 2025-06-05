@@ -7,6 +7,7 @@ import {
   MedicalInstitutionSchema,
 } from './entities/medical-institution.entity';
 import { AdminModule } from '../admin/admin.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { AdminModule } from '../admin/admin.module';
       { name: MedicalInstitution.name, schema: MedicalInstitutionSchema },
     ]),
     AdminModule,
+    UsersModule,
   ],
   controllers: [MedicalInstitutionController],
   providers: [MedicalInstitutionService],

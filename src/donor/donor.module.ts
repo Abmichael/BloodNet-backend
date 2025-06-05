@@ -5,12 +5,14 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Donor, DonorSchema } from './entities/donor.entity';
 import { DonationModule } from '../donation/donation.module';
 import { AdminModule } from '../admin/admin.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Donor.name, schema: DonorSchema }]),
     forwardRef(() => DonationModule), // Use forwardRef to handle circular dependency
     AdminModule,
+    UsersModule,
   ],
   providers: [DonorService],
   controllers: [DonorController],

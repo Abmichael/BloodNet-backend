@@ -13,6 +13,7 @@ import {
   IsEnum,
   ArrayMinSize,
   ArrayMaxSize,
+  IsMongoId,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -30,6 +31,10 @@ export class GeoPointDto {
 }
 
 export class CreateBloodBankDto {
+  @IsMongoId()
+  @IsOptional()
+  user?: string;
+
   @IsString()
   @IsNotEmpty()
   name: string;

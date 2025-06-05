@@ -9,6 +9,8 @@ import { DonorModule } from '../donor/donor.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { BloodBankModule } from '../blood-bank/blood-bank.module';
 import { AdminModule } from '../admin/admin.module';
+import { UsersModule } from '../users/users.module';
+import { ResourceProtectionService } from '../common/guards/resource-protection.service';
 
 @Module({
   imports: [
@@ -20,9 +22,10 @@ import { AdminModule } from '../admin/admin.module';
     NotificationsModule,
     BloodBankModule,
     forwardRef(() => AdminModule), // Use forwardRef to handle circular dependency
+    forwardRef(() => UsersModule), // Use forwardRef to handle circular dependency
   ],
   controllers: [DonationController],
-  providers: [DonationService, BloodUnitSchedulerService],
+  providers: [DonationService, BloodUnitSchedulerService, ResourceProtectionService],
   exports: [DonationService], // Export the service to be used in other modules
 })
 export class DonationModule {}

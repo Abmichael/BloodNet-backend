@@ -18,6 +18,15 @@ import { NotificationHelperService } from '../notifications/notification-helper.
 import { AdminService } from '../admin/admin.service';
 import { ActivityType } from '../admin/entities/activity-log.entity';
 import { DonorDocument } from 'src/donor/entities/donor.entity';
+import { ResourceProtectionService } from '../common/guards/resource-protection.service';
+import { UserDocument, UserRole } from '../users/schemas/user.schema';
+import { UsersService } from '../users/users.service';
+
+// Interface representing the authenticated user context
+interface UserContext {
+  userId: string;
+  userRole: UserRole;
+}
 
 @Injectable()
 export class DonationService {
@@ -27,8 +36,13 @@ export class DonationService {
     private notificationHelper: NotificationHelperService,
     private bloodBankService: BloodBankService,
     @Inject(forwardRef(() => AdminService)) private adminService: AdminService,
+    private resourceProtection: ResourceProtectionService,
+    @Inject(forwardRef(() => UsersService)) private usersService: UsersService,
   ) {}
-  async create(createDonationDto: CreateDonationDto): Promise<Donation> {
+  async create(
+    createDonationDto: CreateDonationDto,
+    user?: Partial<UserDocument>,
+  ): Promise<Donation> {
     // Check if donor exists
     let donorExists: DonorDocument | null = null;
     if (createDonationDto.donor) {
@@ -40,6 +54,18 @@ export class DonationService {
             message: `Donor with ID ${createDonationDto.donor} not found`,
           },
         ]);
+      }
+
+      // Check if the user has permission to create donation for this donor
+      if (user && user.role === UserRole.DONOR) {
+        // Donors can only create donations for themselves
+        this.resourceProtection.verifyAccess(
+          user._id as string,
+          user.role,
+          createDonationDto.donor,
+          'donation',
+          [UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION],
+        );
       }
     }
 
@@ -96,14 +122,21 @@ export class DonationService {
     return savedDonation;
     // Note: MongooseErrorInterceptor will automatically catch and process any Mongoose errors
   }
-  findAll() {
-    return this.donationModel
-      .find()
+  findAll(user?: Partial<UserDocument>) {
+    // Apply resource protection filters if user context is provided
+    const query = user
+      ? this.donationModel.find(this.resourceProtection.buildAccessFilter(user))
+      : this.donationModel.find();
+
+    return query
       .populate('bloodBank', 'name location')
       .populate('donor', 'firstName lastName phoneNumber');
   }
 
-  async assertDonorExists(donorId: string): Promise<void> {
+  async assertDonorExists(
+    donorId: string,
+    user?: Partial<UserDocument>,
+  ): Promise<void> {
     if (!Types.ObjectId.isValid(donorId)) {
       throw new ApiException([
         { field: 'donorId', message: `Invalid donor ID format: ${donorId}` },
@@ -115,16 +148,32 @@ export class DonationService {
         { field: 'donorId', message: `Donor with ID ${donorId} not found` },
       ]);
     }
+
+    // Verify user has access to this donor's data
+    if (user && user.role === UserRole.DONOR && user._id !== donorId) {
+      throw new ApiException([
+        {
+          field: 'donorId',
+          message: `You do not have permission to access this donor's data`,
+        },
+      ]);
+    }
   }
 
-  findAllByDonorQuery(donorId: string) {
+  findAllByDonorQuery(donorId: string, user?: Partial<UserDocument>) {
+    // If user is a donor, verify they can only access their own records
+    if (user && user.role === UserRole.DONOR && user._id !== donorId) {
+      // Return empty query that will match nothing
+      return this.donationModel.find({ _id: { $exists: false } });
+    }
+
     return this.donationModel
       .find({ donor: new Types.ObjectId(donorId) })
       .sort({ donationDate: -1 })
       .populate('bloodBank', 'name location');
   }
 
-  async findOne(id: string): Promise<Donation> {
+  async findOne(id: string, user?: Partial<UserDocument>): Promise<Donation> {
     // Validate ID format
     if (!Types.ObjectId.isValid(id)) {
       throw new ApiException([
@@ -132,15 +181,28 @@ export class DonationService {
       ]);
     }
 
+    let queryConditions: any = { _id: new Types.ObjectId(id) };
+
+    if (user && user._id && user.role) {
+      const accessFilter = this.resourceProtection.buildAccessFilter(
+        user,
+        'donation',
+      );
+      queryConditions = { ...queryConditions, ...accessFilter };
+    }
+
     const donation = await this.donationModel
-      .findById(id)
+      .findOne(queryConditions)
       .populate('bloodBank', 'name location')
       .populate('donor', 'firstName lastName phoneNumber')
       .exec();
 
     if (!donation) {
       throw new ApiException([
-        { field: 'id', message: `Donation with ID ${id} not found` },
+        {
+          field: 'id',
+          message: `Donation with ID ${id} not found or access denied.`,
+        },
       ]);
     }
 
@@ -150,6 +212,7 @@ export class DonationService {
   async update(
     id: string,
     updateDonationDto: UpdateDonationDto,
+    user?: Partial<UserDocument>,
   ): Promise<Donation> {
     // Validate ID format
     if (!Types.ObjectId.isValid(id)) {
@@ -164,6 +227,69 @@ export class DonationService {
       throw new ApiException([
         { field: 'id', message: `Donation with ID ${id} not found` },
       ]);
+    }
+
+    // Verify user has permission to update this donation
+    if (user) {
+      // For donors, only allow updates to their own records and with limited fields
+      if (user.role === UserRole.DONOR) {
+        // Verify ownership
+        this.resourceProtection.verifyAccess(
+          user._id as string,
+          user.role,
+          previousDonation.donor.toString(),
+          'donation',
+          [UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION],
+        );
+
+        // Donors should have limited update capabilities
+        // Define permitted fields that a donor can update
+        const donorPermittedFields = ['notes', 'emergencyContact'];
+
+        // Filter out non-permitted fields
+        const filteredUpdateDto: UpdateDonationDto = {};
+        Object.keys(updateDonationDto).forEach((key) => {
+          if (donorPermittedFields.includes(key)) {
+            filteredUpdateDto[key] = updateDonationDto[key];
+          }
+        });
+
+        // Replace with filtered DTO
+        updateDonationDto = filteredUpdateDto;
+      } else if (
+        user.role === UserRole.MEDICAL_INSTITUTION ||
+        user.role === UserRole.BLOOD_BANK
+      ) {
+        // Medical institutions and blood banks should be able to update donations
+        // related to them
+        const allowedRoles = [UserRole.ADMIN, UserRole.MEDICAL_INSTITUTION];
+
+        let hasAccess = this.resourceProtection.canAccess(
+          user._id as string,
+          user.role,
+          previousDonation.donor.toString(),
+          allowedRoles,
+        );
+
+        // Also check if this blood bank owns the donation
+        if (
+          !hasAccess &&
+          user.role === UserRole.BLOOD_BANK &&
+          previousDonation.bloodBank
+        ) {
+          hasAccess =
+            previousDonation.bloodBank.toString() === (user._id as string);
+        }
+
+        if (!hasAccess) {
+          throw new ApiException([
+            {
+              field: 'id',
+              message: `You do not have permission to update this donation`,
+            },
+          ]);
+        }
+      }
     }
 
     // Update the donation
@@ -229,12 +355,30 @@ export class DonationService {
     // Note: MongooseErrorInterceptor will automatically catch and process any Mongoose errors
   }
 
-  async remove(id: string): Promise<Donation> {
+  async remove(id: string, user?: Partial<UserDocument>): Promise<Donation> {
     // Validate ID format
     if (!Types.ObjectId.isValid(id)) {
       throw new ApiException([
         { field: 'id', message: `Invalid donation ID format: ${id}` },
       ]);
+    }
+
+    // Find donation first to check ownership
+    const donation = await this.donationModel.findById(id).exec();
+    if (!donation) {
+      throw new ApiException([
+        { field: 'id', message: `Donation with ID ${id} not found` },
+      ]);
+    }
+
+    // Verify user has permission to delete
+    if (user) {
+      // Only admins can delete donations
+      if (user.role !== UserRole.ADMIN) {
+        throw new ApiException([
+          { field: 'id', message: `Only administrators can delete donations` },
+        ]);
+      }
     }
 
     const deletedDonation = await this.donationModel
@@ -305,7 +449,10 @@ export class DonationService {
       // The donation record is more important than updating the donor summary
     }
   }
-  async getDonorStats(donorId: string): Promise<any> {
+  async getDonorStats(
+    donorId: string,
+    user?: Partial<UserDocument>,
+  ): Promise<any> {
     // Validate ID format
     if (!Types.ObjectId.isValid(donorId)) {
       throw new ApiException([
@@ -319,6 +466,31 @@ export class DonationService {
       throw new ApiException([
         { field: 'donorId', message: `Donor with ID ${donorId} not found` },
       ]);
+    }
+
+    // Verify user has access to this donor's data
+    if (user) {
+      const isPrivilegedRole =
+        user.role === UserRole.ADMIN ||
+        user.role === UserRole.MEDICAL_INSTITUTION;
+
+      let canAccess = isPrivilegedRole;
+
+      if (!canAccess && user.role === UserRole.DONOR) {
+        // Check if donor is accessing their own stats
+        if (user._id && user._id.toString() === donorId) {
+          canAccess = true;
+        }
+      }
+
+      if (!canAccess) {
+        throw new ApiException([
+          {
+            field: 'donorId',
+            message: `User does not have permission to access stats for donor ${donorId}.`,
+          },
+        ]);
+      }
     }
 
     const donations = await this.donationModel
@@ -418,6 +590,7 @@ export class DonationService {
   async updateBloodUnitStatus(
     donationId: string,
     updateDto: UpdateBloodUnitStatusDto,
+    user?: Partial<UserDocument>,
   ): Promise<Donation> {
     // Validate donation ID
     if (!Types.ObjectId.isValid(donationId)) {
@@ -438,6 +611,53 @@ export class DonationService {
           message: `Donation with ID ${donationId} not found`,
         },
       ]);
+    }
+
+    // Verify user has permission to update blood unit status
+    if (user) {
+      // Blood unit status can only be updated by admins, medical institutions, or associated blood banks
+      if (user.role === UserRole.DONOR) {
+        throw new ApiException([
+          {
+            field: 'donationId',
+            message: 'Donors are not permitted to update blood unit status',
+          },
+        ]);
+      }
+
+      // Check if user is blood bank and donation belongs to them
+      if (user.role === UserRole.BLOOD_BANK) {
+        if (
+          !donation.bloodBank ||
+          donation.bloodBank.toString() !== (user._id as string)
+        ) {
+          throw new ApiException([
+            {
+              field: 'donationId',
+              message:
+                'You do not have permission to update the status of this blood unit',
+            },
+          ]);
+        }
+      }
+
+      // Medical institutions can only update if they have a relationship with this donation
+      if (user.role === UserRole.MEDICAL_INSTITUTION) {
+        // Check if this institution is associated with this donation
+        // This would typically be through dispatchedTo
+        const isMedicalInstitutionAllowed =
+          donation.dispatchedTo === (user._id as string);
+
+        if (!isMedicalInstitutionAllowed) {
+          throw new ApiException([
+            {
+              field: 'donationId',
+              message:
+                'This medical institution does not have permission to update this blood unit unless it was dispatched to them.',
+            },
+          ]);
+        }
+      }
     }
 
     // Only allow status updates for completed donations
@@ -530,6 +750,7 @@ export class DonationService {
   async markAsDispatched(
     donationId: string,
     dispatchDto: DispatchBloodUnitDto,
+    user?: Partial<UserDocument>,
   ): Promise<Donation> {
     const updateDto: UpdateBloodUnitStatusDto = {
       unitStatus: BloodUnitStatus.DISPATCHED,
@@ -541,7 +762,7 @@ export class DonationService {
       updateDto.reservedForRequest = dispatchDto.forRequest;
     }
 
-    return this.updateBloodUnitStatus(donationId, updateDto);
+    return this.updateBloodUnitStatus(donationId, updateDto, user);
   }
 
   /**
@@ -550,6 +771,7 @@ export class DonationService {
   async markAsUsed(
     donationId: string,
     useDto: UseBloodUnitDto,
+    user?: Partial<UserDocument>,
   ): Promise<Donation> {
     const updateDto: UpdateBloodUnitStatusDto = {
       unitStatus: BloodUnitStatus.USED,
@@ -557,7 +779,7 @@ export class DonationService {
       usedAt: useDto.usedAt || new Date().toISOString(),
     };
 
-    return this.updateBloodUnitStatus(donationId, updateDto);
+    return this.updateBloodUnitStatus(donationId, updateDto, user);
   }
 
   /**
@@ -566,6 +788,7 @@ export class DonationService {
   async markAsDiscarded(
     donationId: string,
     discardDto: DiscardBloodUnitDto,
+    user?: Partial<UserDocument>,
   ): Promise<Donation> {
     const updateDto: UpdateBloodUnitStatusDto = {
       unitStatus: BloodUnitStatus.DISCARDED,
@@ -573,18 +796,21 @@ export class DonationService {
       discardedAt: discardDto.discardedAt || new Date().toISOString(),
     };
 
-    return this.updateBloodUnitStatus(donationId, updateDto);
+    return this.updateBloodUnitStatus(donationId, updateDto, user);
   }
 
   /**
    * Mark blood unit as expired
    */
-  async markAsExpired(donationId: string): Promise<Donation> {
+  async markAsExpired(
+    donationId: string,
+    user?: Partial<UserDocument>,
+  ): Promise<Donation> {
     const updateDto: UpdateBloodUnitStatusDto = {
       unitStatus: BloodUnitStatus.EXPIRED,
     };
 
-    return this.updateBloodUnitStatus(donationId, updateDto);
+    return this.updateBloodUnitStatus(donationId, updateDto, user);
   }
 
   /**
@@ -593,24 +819,36 @@ export class DonationService {
   async reserveForRequest(
     donationId: string,
     requestId: string,
+    user?: Partial<UserDocument>,
   ): Promise<Donation> {
     const updateDto: UpdateBloodUnitStatusDto = {
       unitStatus: BloodUnitStatus.RESERVED,
       reservedForRequest: requestId,
     };
 
-    return this.updateBloodUnitStatus(donationId, updateDto);
+    return this.updateBloodUnitStatus(donationId, updateDto, user);
   }
 
   /**
    * Get all blood units with a specific status
    */
-  getBloodUnitsByStatus(status: BloodUnitStatus) {
+  getBloodUnitsByStatus(status: BloodUnitStatus, user?: Partial<UserDocument>) {
+    // Build base query
+    const baseQuery = {
+      status: DonationStatus.COMPLETED,
+      unitStatus: status,
+    };
+
+    // Apply access control filter if user context is provided
+    const query = user
+      ? {
+          ...baseQuery,
+          ...this.resourceProtection.buildAccessFilter(user, 'donation'),
+        }
+      : baseQuery;
+
     return this.donationModel
-      .find({
-        status: DonationStatus.COMPLETED,
-        unitStatus: status,
-      })
+      .find(query)
       .populate('bloodBank', 'name location')
       .populate('donor', 'firstName lastName phoneNumber');
   }
@@ -618,16 +856,34 @@ export class DonationService {
   /**
    * Get expired blood units
    */
-  getExpiredBloodUnits() {
+  getExpiredBloodUnits(user?: Partial<UserDocument>) {
     const now = new Date();
+
+    // Build base query
+    const baseQuery: any = {
+      status: DonationStatus.COMPLETED,
+      unitStatus: {
+        $in: [BloodUnitStatus.IN_INVENTORY, BloodUnitStatus.RESERVED],
+      },
+      expiryDate: { $lt: now },
+    };
+
+    let query = baseQuery;
+
+    // Apply access control filter if user context is provided
+    if (user && user._id && user.role) {
+      const accessFilter = this.resourceProtection.buildAccessFilter(
+        user,
+        'bloodBank', // Assuming 'bloodBank' is the correct resource type here based on original logic
+      );
+      query = {
+        ...baseQuery,
+        ...accessFilter,
+      };
+    }
+
     return this.donationModel
-      .find({
-        status: DonationStatus.COMPLETED,
-        unitStatus: {
-          $in: [BloodUnitStatus.IN_INVENTORY, BloodUnitStatus.RESERVED],
-        },
-        expiryDate: { $lt: now },
-      })
+      .find(query)
       .populate('bloodBank', 'name location')
       .populate('donor', 'firstName lastName phoneNumber')
       .sort({ expiryDate: 1 });
@@ -636,18 +892,35 @@ export class DonationService {
   /**
    * Get blood units expiring within a specified number of days
    */
-  getBloodUnitsExpiringSoon(days: number = 3) {
+  getBloodUnitsExpiringSoon(days: number = 3, user?: Partial<UserDocument>) {
     const expiryThreshold = new Date();
     expiryThreshold.setDate(expiryThreshold.getDate() + days);
 
+    // Build base query
+    const baseQuery: any = {
+      status: DonationStatus.COMPLETED,
+      unitStatus: {
+        $in: [BloodUnitStatus.IN_INVENTORY, BloodUnitStatus.RESERVED],
+      },
+      expiryDate: { $lte: expiryThreshold, $gte: new Date() },
+    };
+
+    let query = baseQuery;
+
+    // Apply access control filter if user context is provided
+    if (user && user._id && user.role) {
+      const accessFilter = this.resourceProtection.buildAccessFilter(
+        user,
+        'bloodBank', // Assuming 'bloodBank' is the correct resource type here
+      );
+      query = {
+        ...baseQuery,
+        ...accessFilter,
+      };
+    }
+
     return this.donationModel
-      .find({
-        status: DonationStatus.COMPLETED,
-        unitStatus: {
-          $in: [BloodUnitStatus.IN_INVENTORY, BloodUnitStatus.RESERVED],
-        },
-        expiryDate: { $lte: expiryThreshold, $gte: new Date() },
-      })
+      .find(query)
       .populate('bloodBank', 'name location')
       .populate('donor', 'firstName lastName phoneNumber')
       .sort({ expiryDate: 1 });
@@ -656,11 +929,11 @@ export class DonationService {
   /**
    * Process expired blood units (mark as expired)
    */
-  async processExpiredBloodUnits(): Promise<{
+  async processExpiredBloodUnits(user?: Partial<UserDocument>): Promise<{
     processed: number;
     units: Donation[];
   }> {
-    const expiredUnits = await this.getExpiredBloodUnits();
+    const expiredUnits = await this.getExpiredBloodUnits(user);
 
     const processedUnits: Donation[] = [];
     for (const unit of expiredUnits) {
@@ -687,7 +960,10 @@ export class DonationService {
   /**
    * Get blood unit status tracking information
    */
-  async getBloodUnitTrackingInfo(donationId: string): Promise<any> {
+  async getBloodUnitTrackingInfo(
+    donationId: string,
+    user?: Partial<UserDocument>,
+  ): Promise<any> {
     if (!Types.ObjectId.isValid(donationId)) {
       throw new ApiException([
         {
@@ -711,6 +987,51 @@ export class DonationService {
           message: `Donation with ID ${donationId} not found`,
         },
       ]);
+    }
+
+    // Verify user has access to this blood unit tracking info
+    if (user) {
+      // For donors, only allow access to their own donations
+      if (user.role === UserRole.DONOR) {
+        if (!user._id || user._id.toString() !== donation.donor.toString()) {
+          throw new ApiException([
+            {
+              field: 'donationId',
+              message:
+                'Donors can only access tracking information for their own donations.',
+            },
+          ]);
+        }
+      }
+      // For blood banks, only allow access to their own units
+      else if (user.role === UserRole.BLOOD_BANK) {
+        if (
+          donation.bloodBank &&
+          (!user._id || donation.bloodBank.toString() !== user._id.toString())
+        ) {
+          throw new ApiException([
+            {
+              field: 'donationId',
+              message:
+                'You do not have permission to view this blood unit tracking information',
+            },
+          ]);
+        }
+      }
+      // Medical institutions access is limited unless a blood unit is dispatched to them
+      else if (user.role === UserRole.MEDICAL_INSTITUTION) {
+        const isAssociated = donation.dispatchedTo === (user._id as string);
+
+        if (!isAssociated) {
+          throw new ApiException([
+            {
+              field: 'donationId',
+              message:
+                'This medical institution does not have permission to view this blood unit',
+            },
+          ]);
+        }
+      }
     }
 
     return {
@@ -759,14 +1080,14 @@ export class DonationService {
       ],
       [BloodUnitStatus.RESERVED]: [
         BloodUnitStatus.DISPATCHED,
-        BloodUnitStatus.IN_INVENTORY, // Can be unreserved
+        BloodUnitStatus.IN_INVENTORY, // Corrected formatting
         BloodUnitStatus.DISCARDED,
         BloodUnitStatus.EXPIRED,
         BloodUnitStatus.QUARANTINED,
       ],
       [BloodUnitStatus.DISPATCHED]: [
         BloodUnitStatus.USED,
-        BloodUnitStatus.DISCARDED, // Can be returned and discarded
+        BloodUnitStatus.DISCARDED,
       ],
       [BloodUnitStatus.USED]: [], // Terminal state
       [BloodUnitStatus.EXPIRED]: [], // Terminal state
@@ -826,16 +1147,35 @@ export class DonationService {
     rhFactor: string,
     unitsNeeded: number,
     bloodBankId?: string,
+    user?: Partial<UserDocument>,
   ): Promise<Donation[]> {
-    const query: any = {
+    // Base query for suitable blood units
+    let query: any = {
       status: DonationStatus.COMPLETED,
       unitStatus: BloodUnitStatus.IN_INVENTORY,
       bloodType: `${bloodType}${rhFactor}`,
       expiryDate: { $gt: new Date() }, // Not expired
     };
 
+    // Add blood bank filter if specified
     if (bloodBankId) {
       query.bloodBank = bloodBankId;
+    }
+
+    // Apply access control if user context is provided
+    if (user && user._id && user.role) {
+      // For blood banks, only include their own units
+      if (user.role === UserRole.BLOOD_BANK) {
+        query.bloodBank = user._id as string;
+      }
+      // For other roles (except admin), use buildAccessFilter
+      else if (user.role !== UserRole.ADMIN) {
+        const accessFilter = this.resourceProtection.buildAccessFilter(
+          user,
+          'donation',
+        );
+        query = { ...query, ...accessFilter };
+      }
     }
 
     // Find suitable units, prioritizing older units (FIFO - First In, First Out)
@@ -856,6 +1196,7 @@ export class DonationService {
   async reserveBloodUnitsForRequest(
     donationIds: string[],
     requestId: string,
+    user?: Partial<UserDocument>,
   ): Promise<Donation[]> {
     const reservedUnits: Donation[] = [];
 
@@ -864,6 +1205,7 @@ export class DonationService {
         const reservedUnit = await this.reserveForRequest(
           donationId,
           requestId,
+          user,
         );
         reservedUnits.push(reservedUnit);
       } catch (error) {
@@ -902,18 +1244,20 @@ export class DonationService {
     rhFactor: string,
     unitsNeeded: number,
     bloodBankId?: string,
+    user?: Partial<UserDocument>,
   ): Promise<{
     success: boolean;
     reservedUnits: Donation[];
     message: string;
   }> {
     try {
-      // Find suitable blood units
+      // Find suitable blood units, passing user context for access control
       const suitableUnits = await this.findSuitableBloodUnitsForRequest(
         bloodType,
         rhFactor,
         unitsNeeded,
         bloodBankId,
+        user,
       );
 
       if (suitableUnits.length === 0) {

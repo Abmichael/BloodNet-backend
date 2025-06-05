@@ -7,16 +7,31 @@ import { UpdateDonorDto } from './dto/update-donor.dto';
 import { Donor, DonorDocument } from './entities/donor.entity';
 import { AdminService } from '../admin/admin.service';
 import { ActivityType } from '../admin/entities/activity-log.entity';
+import { UsersService } from '../users/users.service';
+import { ApiException } from '../common/filters/exception';
 
 @Injectable()
 export class DonorService {
   constructor(
     @InjectModel(Donor.name) private readonly donorModel: Model<DonorDocument>,
     private adminService: AdminService,
+    private usersService: UsersService,
   ) {}
 
   async create(createDonorDto: CreateDonorDto) {
     const createdDonor = await this.donorModel.create(createDonorDto);
+
+    // Set user association if user is provided
+    if (createDonorDto.user) {
+      try {
+        await this.usersService.setDonorAssociation(
+          createDonorDto.user.toString(),
+          (createdDonor as any)._id.toString()
+        );
+      } catch (error) {
+        console.error('Failed to set donor association in user record:', error);
+      }
+    }
 
     // Log donor registration activity
     try {
@@ -67,6 +82,29 @@ export class DonorService {
     const updatedDonor = await this.donorModel.findByIdAndUpdate(id, updateDonorDto, {
       new: true,
     });
+
+    // Handle user association changes
+    if (updatedDonor && existingDonor && updateDonorDto.user !== undefined) {
+      const previousUserId = existingDonor.user?.toString();
+      const newUserId = updateDonorDto.user;
+
+      // If user association is being changed or removed
+      if (previousUserId !== newUserId) {
+        try {
+          // Clear previous user's donor association if exists
+          if (previousUserId) {
+            await this.usersService.setDonorAssociation(previousUserId, null);
+          }
+
+          // Set new user's donor association if provided
+          if (newUserId) {
+            await this.usersService.setDonorAssociation(newUserId, id);
+          }
+        } catch (error) {
+          console.error('Failed to update user association for donor:', error);
+        }
+      }
+    }
 
     // Log profile update activity
     if (updatedDonor && existingDonor) {
@@ -130,6 +168,69 @@ export class DonorService {
       { new: true },
     );
   }
+
+  async remove(id: string): Promise<Donor> {
+    // Validate ID format
+    if (!id || typeof id !== 'string') {
+      throw new ApiException([
+        { field: 'id', message: 'Donor ID is required and must be a string' },
+      ]);
+    }
+
+    // Find the donor first to get their data for logging and user association cleanup
+    const existingDonor = await this.donorModel.findById(id).exec();
+    if (!existingDonor) {
+      throw new ApiException([
+        { field: 'id', message: `Donor with ID ${id} not found` },
+      ], 404);
+    }
+
+    // Clear user association if exists
+    if (existingDonor.user) {
+      try {
+        await this.usersService.setDonorAssociation(existingDonor.user.toString(), null);
+      } catch (error) {
+        console.error('Failed to clear donor association from user record:', error);
+        // Continue with deletion even if association cleanup fails
+      }
+    }
+
+    // Delete the donor
+    const deletedDonor = await this.donorModel.findByIdAndDelete(id).exec();
+    if (!deletedDonor) {
+      throw new ApiException([
+        { field: 'id', message: `Failed to delete donor with ID ${id}` },
+      ]);
+    }
+
+    // Log donor deletion activity
+    try {
+      await this.adminService.logActivity({
+        activityType: ActivityType.PROFILE_UPDATED, // Using PROFILE_UPDATED as it's the closest available type
+        title: 'Donor Profile Deleted',
+        description: `Donor profile for ${deletedDonor.firstName} ${deletedDonor.lastName} was deleted from the system`,
+        userId: deletedDonor.user?.toString(),
+        metadata: {
+          donorId: id,
+          donorName: `${deletedDonor.firstName} ${deletedDonor.lastName}`,
+          bloodType: deletedDonor.bloodType,
+          rhFactor: deletedDonor.RhFactor,
+          phoneNumber: deletedDonor.phoneNumber,
+          email: deletedDonor.email,
+          isEligible: deletedDonor.isEligible,
+          totalDonations: deletedDonor.totalDonations,
+          lastDonationDate: deletedDonor.lastDonationDate,
+          userId: deletedDonor.user?.toString(),
+          deletedAt: new Date().toISOString(),
+        },
+      });
+    } catch (error) {
+      console.error('Failed to log donor deletion activity:', error);
+    }
+
+    return deletedDonor;
+  }
+
   async findByPhoneNumber(phoneNumber: string) {
     return this.donorModel.findOne({ phoneNumber });
   }
